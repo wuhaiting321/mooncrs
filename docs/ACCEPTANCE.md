@@ -20,7 +20,7 @@
 | 指标 | 要求 | 实测 | 证据 |
 | --- | --- | --- | --- |
 | MoonBit 代码行数 | ≥ 500 行 | **7 148 行**（实现 5 960 + 测试 1 188） | `find . -name "*.mbt" -not -path "./_build/*" \| xargs wc -l` |
-| 编译 | 通过 | **0 error, 0 warning** | `moon check` |
+| 编译 | 通过 | **0 error**（0.1.20261020 零告警；0.1.20261104 起对 `derive` 语法提示弃用，不影响构建） | `moon check` |
 | 测试 | 通过 | **62 / 62** | `moon test` |
 | MVP 完整 | 能完成一次真实转换 | 四种输入 → 十二种投影 → 三种坐标系类型 → CLI 可用 | 见第 3 节 |
 | 依赖 | 不引入外部库 | 只依赖 `moonbitlang/core` 的 `math` / `env` / `debug` | 各 `moon.pkg` |
@@ -255,7 +255,7 @@ moon test
 ```bash
 cd F:\moonbit总文件\mooncrs
 
-# 1) 编译检查：期望 0 error, 0 warning
+# 1) 编译检查：期望 0 error（新工具链会提示 derive 语法弃用，属工具链演进）
 moon check
 
 # 2) 全量测试：期望 62/62

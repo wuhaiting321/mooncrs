@@ -25,7 +25,7 @@ jobs:
       - name: Toolchain version
         run: moon version
 
-      - name: Check (0 error, 0 warning)
+      - name: Check
         run: moon check
 
       - name: Test

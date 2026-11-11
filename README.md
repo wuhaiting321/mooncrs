@@ -31,7 +31,8 @@ MoonBit 生态中长期缺位。截至 2026-11，在 mooncakes.io、GitHub
 可直接分发到浏览器与边缘函数。
 
 当前规模：**7 148 行 MoonBit**（实现 5 960 + 测试 1 188），**62 个测试全部通过**，
-`moon check` 零错误零告警。正确性以 EPSG 官方公布算例为准（英国国家格网
+`moon check` 零错误（在 0.1.20261020 上零告警；0.1.20261104 起的工具链会对
+`derive` 语法给出弃用提示，属工具链演进，不影响构建与测试）。正确性以 EPSG 官方公布算例为准（英国国家格网
 E 651409.903 / N 313177.270、NAD27 德州南中 2963503.91 / 254759.80 美测尺、
 Web Mercator 世界宽度 20037508.342789244 m），均命中到厘米级以内，另用 Python
 独立复算排除"测试与实现犯同一个错"。
@@ -46,7 +47,7 @@ Web Mercator 世界宽度 20037508.342789244 m），均命中到厘米级以内�
 - **坐标系类型**：地理坐标系、投影坐标系、地心直角坐标系三类两两互通
 - **定义格式**：WKT2:2019 / WKT1(OGC 01-009) / PROJ 串 / EPSG 码，四种自动判别
 - **地域覆盖**：全球（含极区、南半球、跨 180° 经线）与地方坐标系（英、瑞、比、波、中、北美）
-- **运行环境**：核心包不接触 IO，wasm、wasm-gc、js 三个目标已实测构建通过；native 在代码层无障碍，但需要宿主提供 C 工具链（Windows 下为 MSVC）
+- **运行环境**：核心包不接触 IO，wasm、wasm-gc、js、native 四目标均构建通过（native 在 Linux CI 上构建并运行验证；Windows 本地需宿主安装 MSVC 工具链）
 
 API 只认坐标系定义、不认业务语义，因此同一个 `transform(from, to, x, y)`
 既服务地图前端，也服务测量内业、遥感预处理和批量数据管道。
@@ -121,7 +122,7 @@ let out = @crs.transform(c, @crs.parse("EPSG:4326"), e, n)
 - 提供固定六步转换管道，以及 `transform` / `transform_3d` / `transform_many` 三个入口
 - 提供 6 类显式错误（Parse / Invalid / UnsupportedProjection / UnsupportedOperation / NotFound / Domain），全部 `raise`，不做静默降级
 - 提供 CLI 七条子命令：`transform` / `describe` / `wkt` / `proj` / `list` / `search` / `version`
-- 提供 wasm、wasm-gc、js 三目标构建，CI 自动验证 wasm-gc，产物 113 KB（115 387 字节）
+- 提供 wasm、wasm-gc、js、native 四目标构建，CI 自动验证 wasm-gc 与 native，wasm-gc 产物 113 KB（115 387 字节）
 - 提供 62 个自动化测试，覆盖 EPSG 官方案例、12 种投影闭环、跨基准往返与数学性质（Albers 等积性、Helmert 双约定）
 
 ## 原创与参考说明
