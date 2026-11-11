@@ -1,0 +1,4 @@
+import {
+  "hc155-89/mooncrs/types",
+  "hc155-89/mooncrs/projstr",
+}
