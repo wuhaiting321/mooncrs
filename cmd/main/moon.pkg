@@ -1,0 +1,10 @@
+import {
+  "hc155-89/mooncrs/crs",
+  "hc155-89/mooncrs/types",
+  "hc155-89/mooncrs/epsg",
+  "hc155-89/mooncrs/wkt",
+  "hc155-89/mooncrs/projstr",
+  "moonbitlang/core/env",
+}
+
+pkgtype(kind: "executable")
