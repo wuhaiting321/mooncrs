@@ -1,0 +1,9 @@
+.DS_Store
+_build/
+target/
+target
+.mooncakes/
+.moonagent/
+# MoonBit 生成的接口文件
+pkg.generated.mbti
+*.generated.mbti
