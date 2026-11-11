@@ -36,6 +36,13 @@ jobs:
           moon build --target wasm-gc --release
           ls -l _build/wasm-gc/release/build/cmd/main/main.wasm
 
+      - name: Build native
+        run: |
+          moon build --target native
+          BIN=$(find _build/native -type f \( -name "main" -o -name "main.exe" \) | head -1)
+          echo "native binary: $BIN"
+          "$BIN" transform EPSG:4326 EPSG:32650 116.3912 39.9075
+
       - name: Smoke test CLI
         run: |
           moon run cmd/main -- transform EPSG:4326 EPSG:32650 116.3912 39.9075

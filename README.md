@@ -7,7 +7,7 @@
 - **项目名称**：mooncrs — MoonBit 坐标参考系转换引擎
 - **项目作者**：wuhaiting321
 - **联系方式**：19177746962@163.com
-- **GitHub 仓库链接**：https://github.com/wuhaiting321/mooncrs
+- **GitHub 仓库链接**：https://github.com/wuhaiting321/mooncrs （提交按功能模块组织，逐条可在 `git log` 中核查）
 - **项目方向**：空间数据基础设施 / 坐标几何基础库
 - **是否为移植项目**：否，原创项目
 
@@ -144,46 +144,6 @@ let out = @crs.transform(c, @crs.parse("EPSG:4326"), e, n)
 而是代码是否自写、结构是否自设计。本项目的分层（types / projection / wkt /
 projstr / epsg / crs）与六步管道是为 MoonBit 的类型系统和错误模型重新设计的，
 与 PROJ 的 `PJ` 结构体加运算链表架构没有对应关系；第三方依赖为 0，外部数据文件为 0。
-
-## 仓库与提交记录
-
-仓库地址：https://github.com/wuhaiting321/mooncrs
-
-提交按功能模块组织，每个提交对应一个真实的能力增量，不含空提交、格式化噪音或拆分凑数。
-下表按时间顺序列出构建本项目的 18 个提交，与 `git log` 前 18 条一一对应；其后为文档与
-CI 维护提交，总数以 `git log` 为准。
-
-| # | 提交内容 |
-| ---: | --- |
-| 1 | 初始化 MoonBit 模块、包骨架、许可证与忽略规则 |
-| 2 | `types`：椭球、单位、基准、Helmert 与 CRS 数据模型 |
-| 3 | `projection`：公共数学（子午线弧长、等角纬度、authalic q）与 Krüger 级数 |
-| 4 | `projection`：投影结构与 12 种方法的分派骨架 |
-| 5 | `projection`：墨卡托、LCC、Albers、极射赤面、LAEA、Cassini |
-| 6 | `projection`：Hotine 斜轴墨卡托 variant B |
-| 7 | `wkt`：词法与递归下降解析（WKT1 / WKT2） |
-| 8 | `wkt`：语义层（→ Crs）与 WKT2 生成 |
-| 9 | `projstr`：PROJ 串解析、`+zone`/`+south` 展开与生成 |
-| 10 | `epsg`：内置注册表（含 UTM 与 CGCS2000 公式族生成） |
-| 11 | `crs`：大地↔地心几何、Helmert 正反、六步转换管道 |
-| 12 | `crs`：四种输入格式判别与人类可读描述 |
-| 13 | `cmd/main`：CLI 子命令与参数解析（transform / describe / wkt / proj / list / search / version） |
-| 14 | `test`：EPSG 官方案例与闭环回归套件（62 个测试） |
-| 15 | `docs`：项目申报书与验收文档 |
-| 16 | `docs`：补充申报书联系方式 |
-| 17 | `ci`：GitHub Actions 构建与测试工作流 |
-| 18 | `ci`：升级 actions/checkout 至 v5 |
-
-说明：第 4、5 次提交为投影层的分批落盘，单独检出时会因引用后续提交的新文件而报错；
-从第 6 次提交起，任意一次检出均可 `moon check` 零错误零告警，最终 HEAD 亦然。
-
-复现验证：
-
-```bash
-moon check      # 0 error, 0 warning
-moon test       # Total tests: 62, passed: 62, failed: 0
-find . -name "*.mbt" -not -path "./_build/*" | xargs wc -l | tail -1   # 7148
-```
 
 ## 许可证
 
