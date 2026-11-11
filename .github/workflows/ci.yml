@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Toolchain version
+        run: moon version
+
+      - name: Check (0 error, 0 warning)
+        run: moon check
+
+      - name: Test
+        run: moon test
+
+      - name: Build wasm-gc
+        run: |
+          moon build --target wasm-gc --release
+          ls -l _build/wasm-gc/release/build/cmd/main/main.wasm
+
+      - name: Smoke test CLI
+        run: |
+          moon run cmd/main -- transform EPSG:4326 EPSG:32650 116.3912 39.9075
+          moon run cmd/main -- describe 27700 | head -5
+
+      - name: Code size
+        run: |
+          find . -name "*.mbt" -not -path "./_build/*" | xargs wc -l | tail -1
