@@ -46,7 +46,7 @@ Web Mercator 世界宽度 20037508.342789244 m），均命中到厘米级以内�
 - **坐标系类型**：地理坐标系、投影坐标系、地心直角坐标系三类两两互通
 - **定义格式**：WKT2:2019 / WKT1(OGC 01-009) / PROJ 串 / EPSG 码，四种自动判别
 - **地域覆盖**：全球（含极区、南半球、跨 180° 经线）与地方坐标系（英、瑞、比、波、中、北美）
-- **运行环境**：核心包不接触 IO，同一份代码可编到 wasm、wasm-gc、js、native
+- **运行环境**：核心包不接触 IO，wasm、wasm-gc、js 三个目标已实测构建通过；native 在代码层无障碍，但需要宿主提供 C 工具链（Windows 下为 MSVC）
 
 API 只认坐标系定义、不认业务语义，因此同一个 `transform(from, to, x, y)`
 既服务地图前端，也服务测量内业、遥感预处理和批量数据管道。
@@ -120,8 +120,8 @@ let out = @crs.transform(c, @crs.parse("EPSG:4326"), e, n)
 - 提供 `Crs → WKT2` 与 `Crs → PROJ 串` 的反向生成，支持四种格式互转
 - 提供固定六步转换管道，以及 `transform` / `transform_3d` / `transform_many` 三个入口
 - 提供 6 类显式错误（Parse / Invalid / UnsupportedProjection / UnsupportedOperation / NotFound / Domain），全部 `raise`，不做静默降级
-- 提供 CLI 六条子命令：`transform` / `describe` / `wkt` / `proj` / `list` / `search`
-- 提供 wasm、wasm-gc、js、native 四目标构建，wasm-gc 产物 113 KB（115 387 字节）
+- 提供 CLI 七条子命令：`transform` / `describe` / `wkt` / `proj` / `list` / `search` / `version`
+- 提供 wasm、wasm-gc、js 三目标构建，CI 自动验证 wasm-gc，产物 113 KB（115 387 字节）
 - 提供 62 个自动化测试，覆盖 EPSG 官方案例、12 种投影闭环、跨基准往返与数学性质（Albers 等积性、Helmert 双约定）
 
 ## 原创与参考说明
@@ -149,25 +149,32 @@ projstr / epsg / crs）与六步管道是为 MoonBit 的类型系统和错误模
 
 仓库地址：https://github.com/wuhaiting321/mooncrs
 
-提交按功能模块组织，每个提交是一个完整的独立增量，不含格式化噪音、空提交或重复提交：
+仓库共 **18 个提交**，按功能模块组织，每个提交对应一个真实的能力增量，不含空提交、
+格式化噪音或拆分凑数。下表按时间顺序排列，与 `git log` 输出一致。
 
 | # | 提交内容 |
 | ---: | --- |
 | 1 | 初始化 MoonBit 模块、包骨架、许可证与忽略规则 |
 | 2 | `types`：椭球、单位、基准、Helmert 与 CRS 数据模型 |
 | 3 | `projection`：公共数学（子午线弧长、等角纬度、authalic q）与 Krüger 级数 |
-| 4 | `projection`：墨卡托、LCC、Albers、极射赤面、LAEA、Cassini |
-| 5 | `projection`：Hotine 斜轴墨卡托 variant B |
-| 6 | `projection`：投影结构与 12 种方法的分派 |
+| 4 | `projection`：投影结构与 12 种方法的分派骨架 |
+| 5 | `projection`：墨卡托、LCC、Albers、极射赤面、LAEA、Cassini |
+| 6 | `projection`：Hotine 斜轴墨卡托 variant B |
 | 7 | `wkt`：词法与递归下降解析（WKT1 / WKT2） |
 | 8 | `wkt`：语义层（→ Crs）与 WKT2 生成 |
 | 9 | `projstr`：PROJ 串解析、`+zone`/`+south` 展开与生成 |
 | 10 | `epsg`：内置注册表（含 UTM 与 CGCS2000 公式族生成） |
 | 11 | `crs`：大地↔地心几何、Helmert 正反、六步转换管道 |
 | 12 | `crs`：四种输入格式判别与人类可读描述 |
-| 13 | `cmd/main`：CLI 六条子命令 |
+| 13 | `cmd/main`：CLI 子命令与参数解析（transform / describe / wkt / proj / list / search / version） |
 | 14 | `test`：EPSG 官方案例与闭环回归套件（62 个测试） |
 | 15 | `docs`：项目申报书与验收文档 |
+| 16 | `docs`：补充申报书联系方式 |
+| 17 | `ci`：GitHub Actions 构建与测试工作流 |
+| 18 | `ci`：升级 actions/checkout 至 v5 |
+
+说明：第 4、5 次提交为投影层的分批落盘，单独检出时会因引用后续提交的新文件而报错；
+从第 6 次提交起，任意一次检出均可 `moon check` 零错误零告警，最终 HEAD 亦然。
 
 复现验证：
 
