@@ -7,3 +7,6 @@ target
 # MoonBit 生成的接口文件
 pkg.generated.mbti
 *.generated.mbti
+
+# 第三方网格数据不入库（版权与体积，见 docs/DATA.md）
+*.gsb
