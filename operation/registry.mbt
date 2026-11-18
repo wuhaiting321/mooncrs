@@ -368,6 +368,19 @@ pub fn all() -> Array[CoordinateOperation] raise @types.CrsError {
   )
   ops.push(
     grid(
+      "EPSG:15948",
+      "DHDN → ETRS89（BETA2007 网格）",
+      "BETA2007",
+      "DHDN",
+      "ETRS89",
+      germany(),
+      Some(0.1),
+      "EPSG:15948",
+      "德国官方路径（BKG 的 BeTA2007 格网）。需要 BETA2007.gsb，数据不随本库分发；与同链路 7 参数（标称 3 m）并存，按精度排序后网格优先",
+    ),
+  )
+  ops.push(
+    grid(
       "EPSG:1241",
       "NAD27 → NAD83（NADCON 网格）",
       "conus",
