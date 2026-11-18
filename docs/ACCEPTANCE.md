@@ -154,7 +154,7 @@ $ moon run cmd/main -- proj EPSG:27700   # WKT/EPSG → PROJ 串
 ```bash
 $ moon build --target wasm-gc --release
 $ ls -l _build/wasm-gc/release/build/cmd/main/main.wasm
-156029 字节
+156029 字节   # CI（工具链 0.1.20261104）实测 155714 字节，差异来自编译器版本
 ```
 
 整个引擎（含 250 个 EPSG 定义、NTv2 解析与 CLI）编译为 156 KB 的 wasm-gc 模块，

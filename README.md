@@ -27,7 +27,7 @@ MoonBit 生态中长期缺位。截至 2026-11，在 mooncakes.io、GitHub
 （`moonbit + crs/epsg/proj`）等可检索范围内，未发现可直接复用的 CRS 引擎。
 本项目把它补齐，并刻意选择"核心零依赖"的路线：不绑定 PROJ、不调用 C 库、
 不用 FFI，核心包只依赖 `moonbitlang/core`，250 个 EPSG 定义编译进二进制，
-整个引擎加 CLI 编译为 **156 KB** 的 wasm-gc 模块，可直接分发到浏览器与边缘函数。
+整个引擎加 CLI 编译为 **约 156 KB** 的 wasm-gc 模块，可直接分发到浏览器与边缘函数。
 
 基准变换不是"一套参数走天下"。同一个 OSGB36 → ETRS89，英国官方有 OSTN15 网格
 （0.1 m）与七参数（2 m）两条路径；同一对基准在不同地区的参数也可能不同。因此
@@ -142,7 +142,7 @@ let out = @crs.transform(c, @crs.parse("EPSG:4326"), e, n)
 - 提供固定六步转换管道，以及 `transform` / `transform_3d` / `transform_many` 三个入口
 - 提供 6 类显式错误（Parse / Invalid / UnsupportedProjection / UnsupportedOperation / NotFound / Domain），全部 `raise`，不做静默降级
 - 提供 CLI 八条子命令：`transform` / `grid` / `describe` / `wkt` / `proj` / `list` / `search` / `version`
-- 提供 wasm、wasm-gc、js、native 四目标构建，CI 自动验证 wasm-gc 与 native，wasm-gc 产物 156 KB（156 029 字节）
+- 提供 wasm、wasm-gc、js、native 四目标构建，CI 自动验证 wasm-gc 与 native，wasm-gc 产物约 156 KB
 - 提供 100 个自动化测试，覆盖 EPSG 官方案例、12 种投影闭环、跨基准往返、数学性质（Albers 等积性、Helmert 双约定），以及"该失败时必须失败"的反例（范围外、缺数据、坏网格文件）
 
 ## 原创与参考说明
