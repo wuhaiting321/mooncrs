@@ -14,18 +14,18 @@ pub fn to_proj(crs : @types.Crs) -> String {
     Geographic(g) => {
       parts.push("+proj=longlat")
       push_ellipsoid(parts, g.datum.ellipsoid)
-      push_datum(parts, g.datum)
+      push_datum(parts, g.datum, g.towgs84)
     }
     Geocentric(c) => {
       parts.push("+proj=geocent")
       push_ellipsoid(parts, c.datum.ellipsoid)
-      push_datum(parts, c.datum)
+      push_datum(parts, c.datum, None)
       parts.push("+units=" + unit_code(c.unit))
     }
     Projected(p) => {
       parts.push("+proj=" + proj_code(p))
       push_ellipsoid(parts, p.base.datum.ellipsoid)
-      push_datum(parts, p.base.datum)
+      push_datum(parts, p.base.datum, p.base.towgs84)
       push_parameters(parts, p)
       parts.push("+units=" + unit_code(p.unit))
     }
@@ -74,12 +74,19 @@ fn push_ellipsoid(parts : Array[String], ellipsoid : @types.Ellipsoid) -> Unit {
 }
 
 ///|
-/// 基准附加参数：本初子午线与七参数。
-fn push_datum(parts : Array[String], datum : @types.Datum) -> Unit {
+/// 基准附加参数：本初子午线与内嵌 towgs84。
+///
+/// `towgs84` 从坐标系上传进来（而不是从基准取），因为它是定义文本
+/// 自带的参数，不是基准的属性。
+fn push_datum(
+  parts : Array[String],
+  datum : @types.Datum,
+  towgs84 : @types.Helmert?,
+) -> Unit {
   if datum.prime_meridian != 0.0 {
     parts.push("+pm=" + fmt(datum.prime_meridian))
   }
-  match datum.to_wgs84 {
+  match towgs84 {
     Some(h) =>
       if !h.is_identity() {
         parts.push(

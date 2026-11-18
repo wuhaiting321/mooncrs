@@ -135,45 +135,51 @@ pub fn helmert_inverse(
 }
 
 ///|
-/// 两个基准之间的大地坐标转换（含椭球变化）。
+/// 按一条坐标运算把大地坐标从源椭球搬到目标椭球。
 ///
-/// 流程固定为「源椭球 → 地心 → WGS84 → 目标基准 → 目标椭球」。
-/// 始终经过 WGS84 而不是直接两两转换，是因为七参数的定义就是
-/// "相对 WGS84"；两两直转会需要 N×(N-1) 套参数，且没有公开来源。
-///
-/// **没有七参数时不做椭球往返**：把 WGS84 上的经纬度直接搬到 Clarke 1866
-/// 上再反算，会让纬度漂移上百米——那不是"转换"，是"强行解释"。
-/// 正确的退化行为是保持经纬度不变（只换标注的椭球），这也是 PROJ 在
-/// 缺少 `+towgs84` 时的"ballpark"做法。代价是真实误差可能达到百米级，
-/// 因此调用方若关心精度，必须显式提供七参数。
-pub fn shift_datum(
-  from : @types.Datum,
-  to : @types.Datum,
+/// 运算本身是数据（带来源、范围、精度），这里是它唯一的执行点。
+/// 每个方法分支都必须对"参数形态不对"和"缺数据"给出可操作的错误，
+/// 不许回退成"什么都不做"——0.1 版正是在这里静默返回原值，被打了回来。
+pub fn apply_operation(
+  op : @operation.CoordinateOperation,
+  a_from : Double,
+  e2_from : Double,
+  a_to : Double,
+  e2_to : Double,
   lon : Double,
   lat : Double,
   h : Double,
-) -> (Double, Double, Double) {
-  let same_ellipsoid = from.ellipsoid.semi_major == to.ellipsoid.semi_major &&
-    from.ellipsoid.inverse_flattening == to.ellipsoid.inverse_flattening
-  if same_ellipsoid && !from.has_shift() && !to.has_shift() {
-    return (lon, lat, h)
+) -> (Double, Double, Double) raise @types.CrsError {
+  match op.method_kind {
+    Identity | Assumed | Ballpark => (lon, lat, h)
+    GeocentricTranslation3 | PositionVector7 | CoordinateFrame7 | Molodensky => {
+      let helmert = match op.params {
+        Helmert(hm) => hm
+        _ =>
+          raise @types.CrsError::Invalid(
+            "运算 " + op.code + " 声明为 Helmert 类方法，但没有 Helmert 参数",
+          )
+      }
+      let geo = geodetic_to_geocentric(a_from, e2_from, lon, lat, h)
+      let shifted = if op.reversed {
+        helmert_inverse(helmert, geo.0, geo.1, geo.2)
+      } else {
+        helmert_forward(helmert, geo.0, geo.1, geo.2)
+      }
+      geocentric_to_geodetic(a_to, e2_to, shifted.0, shifted.1, shifted.2)
+    }
+    Ntv2Grid | NadconGrid => {
+      let grid_id = match op.params {
+        Grid(id) => id
+        _ => op.code
+      }
+      raise @types.CrsError::UnsupportedOperation(
+        "运算 " +
+        op.code +
+        " 需要网格数据 " +
+        grid_id +
+        "（.gsb / .las），当前未提供。网格数据不随本库分发，获取方式见 docs/DATA.md",
+      )
+    }
   }
-  if !from.has_shift() && !to.has_shift() {
-    // 两个基准都没有可用的七参数：按"基准重合"处理。
-    return (lon, lat, h)
-  }
-  let a_from = from.ellipsoid.semi_major
-  let e2_from = from.ellipsoid.e2()
-  let a_to = to.ellipsoid.semi_major
-  let e2_to = to.ellipsoid.e2()
-  let geo = geodetic_to_geocentric(a_from, e2_from, lon, lat, h)
-  let at_wgs = match from.to_wgs84 {
-    Some(helmert) => helmert_forward(helmert, geo.0, geo.1, geo.2)
-    None => geo
-  }
-  let at_target = match to.to_wgs84 {
-    Some(helmert) => helmert_inverse(helmert, at_wgs.0, at_wgs.1, at_wgs.2)
-    None => at_wgs
-  }
-  geocentric_to_geodetic(a_to, e2_to, at_target.0, at_target.1, at_target.2)
 }

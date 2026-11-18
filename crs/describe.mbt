@@ -19,12 +19,12 @@ pub fn describe(crs : @types.Crs) -> String {
   sb.write_string("  类型      " + kind_text(crs) + "\n")
   match crs {
     Geographic(g) => {
-      write_datum(sb, g.datum)
+      write_datum(sb, g.datum, g.towgs84)
       sb.write_string("  单位      " + g.unit.name + "（1 " + g.unit.name + " = " + @projstr.fmt(g.unit.factor) + " rad）\n")
       sb.write_string("  轴序      " + axis_text(g.axis) + "\n")
     }
     Projected(p) => {
-      write_datum(sb, p.base.datum)
+      write_datum(sb, p.base.datum, p.base.towgs84)
       sb.write_string(
         "  方法      " +
         p.method_name +
@@ -70,7 +70,7 @@ pub fn describe(crs : @types.Crs) -> String {
       sb.write_string("  轴序      " + axis_text(p.axis) + "\n")
     }
     Geocentric(c) => {
-      write_datum(sb, c.datum)
+      write_datum(sb, c.datum, None)
       sb.write_string("  单位      " + c.unit.name + "\n")
       sb.write_string("  轴序      X, Y, Z（地心直角）\n")
     }
@@ -80,8 +80,15 @@ pub fn describe(crs : @types.Crs) -> String {
 
 ///|
 /// 基准与椭球信息。
-fn write_datum(sb : StringBuilder, datum : @types.Datum) -> Unit {
-  sb.write_string("  基准      " + datum.name + "\n")
+///
+/// 不打印七参数：参数已经不在基准上（见 operation 注册表），
+/// 这里只报基准身份；定义文本自带的参数单独标出，并注明其局限。
+fn write_datum(
+  sb : StringBuilder,
+  datum : @types.Datum,
+  towgs84 : @types.Helmert?,
+) -> Unit {
+  sb.write_string("  基准      " + datum.name + "（" + datum.key + "）\n")
   sb.write_string(
     "  椭球      " +
     datum.ellipsoid.name +
@@ -96,11 +103,11 @@ fn write_datum(sb : StringBuilder, datum : @types.Datum) -> Unit {
       "  本初子午线 " + @projstr.fmt(datum.prime_meridian) + "°（相对格林尼治）\n",
     )
   }
-  match datum.to_wgs84 {
+  match towgs84 {
     Some(h) =>
       if !h.is_identity() {
         sb.write_string(
-          "  七参数    dx=" +
+          "  内嵌参数  dx=" +
           @projstr.fmt(h.dx) +
           " dy=" +
           @projstr.fmt(h.dy) +
@@ -114,7 +121,7 @@ fn write_datum(sb : StringBuilder, datum : @types.Datum) -> Unit {
           @projstr.fmt(h.rz) +
           " ds=" +
           @projstr.fmt(h.ds) +
-          " ppm\n",
+          " ppm（来自定义文本，无范围与精度声明）\n",
         )
       }
     None => ()

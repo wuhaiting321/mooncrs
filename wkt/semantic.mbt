@@ -283,7 +283,13 @@ fn parse_towgs84(node : WktNode) -> @types.Helmert? {
 
 ///|
 /// 解析基准（DATUM / GEODETICDATUM / ENSEMBLE）。
-fn parse_datum(node : WktNode) -> @types.Datum raise @types.CrsError {
+///
+/// 返回 `(基准, 内嵌 towgs84)`：后者来自 `TOWGS84[...]`，属于"这份 WKT
+/// 自带的参数"，挂在坐标系上而不是基准上——它没有适用范围、没有精度、
+/// 没有出处，不能当成基准的固有属性。
+fn parse_datum(
+  node : WktNode,
+) -> (@types.Datum, @types.Helmert?) raise @types.CrsError {
   let target = match find_child(node, "DATUM") {
     Some(d) => Some(d)
     None => match find_child(node, "GEODETICDATUM") {
@@ -300,9 +306,17 @@ fn parse_datum(node : WktNode) -> @types.Datum raise @types.CrsError {
         None => 0.0
       }
       let towgs = parse_towgs84(d)
-      @types.Datum::new(name, ellipsoid, prime_meridian=pm, to_wgs84=towgs)
+      (
+        @types.Datum::new(
+          @types.Datum::key_of(name),
+          name,
+          ellipsoid,
+          prime_meridian=pm,
+        ),
+        towgs,
+      )
     }
-    None => @types.wgs84_datum
+    None => (@types.wgs84_datum, None)
   }
 }
 
@@ -310,11 +324,13 @@ fn parse_datum(node : WktNode) -> @types.Datum raise @types.CrsError {
 /// 解析地理坐标系节点（GEOGCRS / BASEGEOGCRS / GEOGCS）。
 fn parse_geographic(node : WktNode) -> @types.GeographicCrs raise @types.CrsError {
   let name = first_text(node).unwrap_or("unnamed geographic CRS")
-  let datum = parse_datum(node)
+  let (datum, towgs) = parse_datum(node)
   let unit = parse_angular_unit(node)
   let axis = parse_axis_order(node, false)
   let id = parse_identifier(node)
-  @types.GeographicCrs::new(name, datum, unit=unit, axis=axis, id=id)
+  @types.GeographicCrs::new(
+    name, datum, unit=unit, axis=axis, id=id, towgs84=towgs,
+  )
 }
 
 ///|

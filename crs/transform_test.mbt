@@ -179,13 +179,18 @@ test "轴序 LatLon" {
 
 ///|
 /// 单位：NAD27 德州南中（美国测量英尺）必须是英尺。
+///
+/// 起算点用 NAD27 自身（EPSG:4267）而不是 WGS84：这条测试验的是"假东
+/// 2000000 美国测量英尺有没有被当成米"，与基准变换无关。0.1 版从 WGS84
+/// 起算只是因为当时 NAD27 没有登记运算、被当成同基准；现在 NAD27 有
+/// 三参数运算，从 WGS84 起算会把 10 m 级的基准差混进来。
 test "美国测量英尺单位" {
-  let wgs84 = @epsg.get(4326)
+  let nad27 = @epsg.get(4267)
   let texas = @epsg.get(32040)
-  let xy = @crs.transform(wgs84, texas, -96.0, 28.5)
+  let xy = @crs.transform(nad27, texas, -96.0, 28.5)
   assert_true((xy.0 - 2963503.91).abs() < 2.0)
   assert_true((xy.1 - 254759.80).abs() < 2.0)
-  let back = @crs.transform(texas, wgs84, xy.0, xy.1)
+  let back = @crs.transform(texas, nad27, xy.0, xy.1)
   assert_true((back.0 + 96.0).abs() < 1.0e-7)
   assert_true((back.1 - 28.5).abs() < 1.0e-7)
 }

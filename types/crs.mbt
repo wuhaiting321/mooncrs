@@ -91,6 +91,12 @@ pub struct GeographicCrs {
   unit : AngularUnit
   axis : AxisOrder
   id : Identifier?
+  /// 定义文本自带的参数（WKT1 `TOWGS84[...]` / PROJ `+towgs84=`）。
+  ///
+  /// 刻意挂在坐标系而不是基准上：它只对"这份定义"成立，没有适用范围、
+  /// 没有精度声明、没有出处。转换时按 `LOCAL:INLINE_TOWGS84` 处理，
+  /// 并强制附带"精度未声明"的警告。
+  towgs84 : Helmert?
 } derive(Debug, Eq)
 
 ///|
@@ -108,8 +114,9 @@ pub fn GeographicCrs::new(
   unit~ : AngularUnit = degree,
   axis~ : AxisOrder = LonLat,
   id~ : Identifier? = None,
+  towgs84~ : Helmert? = None,
 ) -> GeographicCrs {
-  { name, datum, unit, axis, id }
+  { name, datum, unit, axis, id, towgs84 }
 }
 
 ///|
@@ -221,6 +228,19 @@ pub fn Crs::datum(self : Crs) -> Datum {
     Geographic(g) => g.datum
     Projected(p) => p.base.datum
     Geocentric(c) => c.datum
+  }
+}
+
+///|
+/// 坐标系定义文本自带的参数（`TOWGS84` / `+towgs84`），没有则为 `None`。
+///
+/// 地心坐标系不返回：PROJ 的 `+proj=geocent` 允许带 `+towgs84`，但地心坐标
+/// 本身就是转换的中间态，再叠一层参数只会让语义变得不可解释。
+pub fn Crs::inline_towgs84(self : Crs) -> Helmert? {
+  match self {
+    Geographic(g) => g.towgs84
+    Projected(p) => p.base.towgs84
+    Geocentric(_) => None
   }
 }
 

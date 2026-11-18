@@ -84,7 +84,7 @@ test "WKT1 解析 GEOGCS 与 TOWGS84" {
     Geographic(g) => {
       assert_true(g.name == "WGS 84")
       assert_true((g.unit.factor - 0.017453292519943295).abs() < 1.0e-17)
-      match g.datum.to_wgs84 {
+      match g.towgs84 {
         Some(h) => assert_true(h.is_identity())
         None => assert_true(false)
       }

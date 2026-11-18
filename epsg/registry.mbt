@@ -161,13 +161,13 @@ fn static_definition(code : Int32) -> (String, String)? {
     2154 => Some(("RGF93 v1 / Lambert-93", "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +datum=ETRS89"))
     27700 => Some(("OSGB36 / British National Grid", "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +datum=OSGB36"))
     2157 => Some(("TM65 / Irish Transverse Mercator", "+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=0.99982 +x_0=600000 +y_0=750000 +ellps=GRS80"))
-    29903 => Some(("TM75 / Irish Grid", "+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=1.000035 +x_0=200000 +y_0=250000 +a=6377340.189 +rf=299.3249646"))
-    2056 => Some(("CH1903+ / LV95", "+proj=omerc +lat_0=46.95240555555556 +lonc=7.439583333333333 +alpha=90 +gamma=90 +k=1 +x_0=2600000 +y_0=1200000 +ellps=bessel"))
-    21781 => Some(("CH1903 / LV03", "+proj=omerc +lat_0=46.95240555555556 +lonc=7.439583333333333 +alpha=90 +gamma=90 +k=1 +x_0=600000 +y_0=200000 +ellps=bessel"))
+    29903 => Some(("TM75 / Irish Grid", "+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=1.000035 +x_0=200000 +y_0=250000 +a=6377340.189 +rf=299.3249646 +datum=TM65"))
+    2056 => Some(("CH1903+ / LV95", "+proj=omerc +lat_0=46.95240555555556 +lonc=7.439583333333333 +alpha=90 +gamma=90 +k=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +datum=CH1903"))
+    21781 => Some(("CH1903 / LV03", "+proj=omerc +lat_0=46.95240555555556 +lonc=7.439583333333333 +alpha=90 +gamma=90 +k=1 +x_0=600000 +y_0=200000 +ellps=bessel +datum=CH1903"))
     // 这里的 4.367486666666666 已是格林尼治经度（布鲁塞尔 ≈ 4.3679°E），
     // 不能再叠加 `+pm=brussels`，否则中央经线会偏到 -0.0005° 附近、
     // 横坐标整体变成负数。
-    31370 => Some(("BD72 / Belgian Lambert 72", "+proj=lcc +lat_1=51.16666723333333 +lat_2=49.8333339 +lat_0=90 +lon_0=4.367486666666666 +x_0=150000.013 +y_0=5400088.438 +ellps=intl"))
+    31370 => Some(("BD72 / Belgian Lambert 72", "+proj=lcc +lat_1=51.16666723333333 +lat_2=49.8333339 +lat_0=90 +lon_0=4.367486666666666 +x_0=150000.013 +y_0=5400088.438 +ellps=intl +datum=BD72"))
     2180 => Some(("ETRF2000-PL / CS92", "+proj=lcc +lat_1=50.625 +lat_2=53.58333333333334 +lat_0=0 +lon_0=19 +x_0=500000 +y_0=-5300000 +ellps=krass"))
 
     // ── 北美 ─────────────────────────────────────────────────────

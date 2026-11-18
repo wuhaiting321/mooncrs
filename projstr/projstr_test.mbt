@@ -36,7 +36,7 @@ test "towgs84 解析" {
   let crs = @projstr.to_crs(params)
   match crs {
     Geographic(g) =>
-      match g.datum.to_wgs84 {
+      match g.towgs84 {
         Some(h) => {
           assert_true((h.dx - 446.448).abs() < 1.0e-9)
           assert_true((h.ds + 20.4894).abs() < 1.0e-9)

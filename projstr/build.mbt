@@ -17,12 +17,15 @@ pub fn to_crs(params : ProjParams) -> @types.Crs raise @types.CrsError {
     None => raise @types.CrsError::Parse("PROJ 串缺少 +proj 参数")
   }
   let datum = datum_of(params)
+  let towgs = towgs84_of(params)
   let unit = angular_unit_of(params)
   let axis = axis_of(params, false)
   let name = crs_name(params, proj)
   if proj == "longlat" || proj == "latlong" || proj == "lonlat" {
     return @types.Crs::Geographic(
-      @types.GeographicCrs::new(name, datum, unit=unit, axis=axis),
+      @types.GeographicCrs::new(
+        name, datum, unit=unit, axis=axis, towgs84=towgs,
+      ),
     )
   }
   if proj == "geocent" {
@@ -36,6 +39,7 @@ pub fn to_crs(params : ProjParams) -> @types.Crs raise @types.CrsError {
     datum,
     unit=unit,
     axis=axis,
+    towgs84=towgs,
   )
   let projected_params = parameters_of(params, unit)
   @types.Crs::Projected(
@@ -196,29 +200,28 @@ fn kind_unit(kind : ParamKind) -> String {
 
 ///|
 /// 解析 `+datum=`。未给出时按 `+ellps=` 或 `+a/+b` 自建基准。
+///
+/// 这里**只产出基准身份，不产出转换参数**。`+datum=OSGB36` 的含义是
+/// "这是 OSGB36 基准"，不是"请套用 446.448 那套七参数"——用哪套参数、
+/// 在什么范围成立、精度多少，由 `operation` 注册表决定。
 fn datum_of(params : ProjParams) -> @types.Datum raise @types.CrsError {
   let ellipsoid = ellipsoid_of(params)
   let prime_meridian = prime_meridian_of(params)
-  let explicit_shift = towgs84_of(params)
   let datum_name = match params.get("datum") {
     Some(d) => d
     None => "unknown"
-  }
-  let shift = match explicit_shift {
-    Some(h) => Some(h)
-    None => default_shift(datum_name.to_upper())
   }
   let name = if datum_name == "unknown" {
     "Unknown datum based upon " + ellipsoid.name
   } else {
     datum_display_name(datum_name)
   }
-  @types.Datum::new(
-    name,
-    ellipsoid,
-    prime_meridian=prime_meridian,
-    to_wgs84=shift,
-  )
+  let key = if datum_name == "unknown" {
+    "UNKNOWN"
+  } else {
+    @types.Datum::key_of(datum_name)
+  }
+  @types.Datum::new(key, name, ellipsoid, prime_meridian=prime_meridian)
 }
 
 ///|
@@ -237,42 +240,20 @@ fn datum_display_name(datum : String) -> String {
     "ETRS89" => "European Terrestrial Reference System 1989"
     "CGCS2000" => "China 2000"
     "GDA94" => "Geocentric Datum of Australia 1994"
+    "BD72" => "Belgian Datum 1972"
+    "CH1903" => "CH1903"
+    "DHDN" => "Deutsches Hauptdreiecksnetz"
     "POTSDAM" => "Potsdam Rauenberg 1950 DHDN"
     "CARTHAGE" => "Carthage 1934 Tunisia"
     "HERMANSKOGEL" => "Militar-Geographische Institut"
     "IRE65" => "TM65"
+    "TM65" => "TM65"
     "NZGD49" => "New Zealand Geodetic Datum 1949"
     "S65" => "System of the Unified Trigonometrical Cadastral Network"
+    "ED50" => "European Datum 1950"
+    "AMERSFOORT" => "Amersfoort"
+    "NTF" => "Nouvelle Triangulation Francaise"
     _ => datum
-  }
-}
-
-///|
-/// `+datum=` 的内置七参数。数值取自 EPSG 与 PROJ 的 datum 表，
-/// 顺序为 dx, dy, dz, rx, ry, rz, ds（Position Vector 约定）。
-fn default_shift(datum : String) -> @types.Helmert? {
-  match datum {
-    "WGS84" => Some(@types.helmert_identity)
-    "NAD83" => Some(@types.helmert_identity)
-    "ETRS89" => Some(@types.helmert_identity)
-    "GDA94" => Some(@types.helmert_identity)
-    "CGCS2000" => Some(@types.helmert_identity)
-    "OSGB36" =>
-      Some(
-        @types.Helmert::new(446.448, -125.157, 542.06, 0.1502, 0.247, 0.8421, -20.4894),
-      )
-    "POTSDAM" =>
-      Some(@types.Helmert::new(598.1, 73.7, 418.2, 0.202, 0.045, -2.455, 6.7))
-    "CARTHAGE" =>
-      Some(@types.Helmert::new(-263.0, 6.0, 431.0, 0.0, 0.0, 0.0, 0.0))
-    "HERMANSKOGEL" =>
-      Some(@types.Helmert::new(577.326, 90.129, 463.919, 5.137, 1.474, 5.297, 2.4232))
-    "IRE65" =>
-      Some(@types.Helmert::new(482.06, -130.71, 564.56, -2.235, 0.622, 0.624, 0.696))
-    "NZGD49" =>
-      Some(@types.Helmert::new(59.47, -5.04, 187.44, 0.47, -0.1, 1.024, -4.5993))
-    "S65" => Some(@types.Helmert::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
-    _ => None
   }
 }
 
