@@ -4,7 +4,9 @@ import {
   "hc155-89/mooncrs/epsg",
   "hc155-89/mooncrs/wkt",
   "hc155-89/mooncrs/projstr",
+  "hc155-89/mooncrs/grid",
   "moonbitlang/core/env",
+  "moonbitlang/x/fs",
 }
 
 pkgtype(kind: "executable")

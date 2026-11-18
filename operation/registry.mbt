@@ -357,7 +357,7 @@ pub fn all() -> Array[CoordinateOperation] raise @types.CrsError {
     grid(
       "EPSG:7709",
       "OSGB36 → ETRS89（OSTN15 网格）",
-      "OSTN15",
+      "OSTN15_NTv2_OSGBtoETRS",
       "OSGB36",
       "ETRS89",
       uk(),
@@ -370,13 +370,14 @@ pub fn all() -> Array[CoordinateOperation] raise @types.CrsError {
     grid(
       "EPSG:1241",
       "NAD27 → NAD83（NADCON 网格）",
-      "NADCON-CONUS",
+      "conus",
       "NAD27",
       "NAD83",
       conus(),
       Some(0.15),
       "EPSG:1241",
-      "美国官方路径；需要 conus.las/.los 文件，数据不随本库分发",
+      "美国官方路径；NADCON 使用 .las/.los 格式，本版只实现 NTv2（.gsb）解析，数据与格式都不随本库分发",
+      method_kind=NadconGrid,
     ),
   )
   ops
@@ -526,11 +527,12 @@ fn grid(
   accuracy : Double?,
   authority : String,
   note : String,
+  method_kind~ : OperationMethod = Ntv2Grid,
 ) -> CoordinateOperation raise @types.CrsError {
   CoordinateOperation::new(
     code~,
     name~,
-    method_kind=Ntv2Grid,
+    method_kind~,
     params=OperationParams::Grid(grid_id),
     source~,
     target~,

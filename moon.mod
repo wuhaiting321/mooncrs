@@ -23,4 +23,12 @@ keywords = [
 
 preferred_target = "wasm"
 
+import {
+  "moonbitlang/x@0.4.48"
+}
+
+
+
+
+
 description = "Coordinate reference system transformation engine: WKT2/WKT1/PROJ/EPSG in, 12 projections, Helmert datum shifts, no external dependencies."

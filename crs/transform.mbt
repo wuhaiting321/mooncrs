@@ -25,8 +25,9 @@ pub fn transform(
   to : @types.Crs,
   x : Double,
   y : Double,
+  grids? : @grid.GridSet,
 ) -> (Double, Double) raise @types.CrsError {
-  let r = convert(from, to, x, y, 0.0)
+  let r = convert(from, to, x, y, 0.0, grids_of(grids))
   (r.0, r.1)
 }
 
@@ -39,8 +40,9 @@ pub fn transform_3d(
   x : Double,
   y : Double,
   z : Double,
+  grids? : @grid.GridSet,
 ) -> (Double, Double, Double) raise @types.CrsError {
-  let r = convert(from, to, x, y, z)
+  let r = convert(from, to, x, y, z, grids_of(grids))
   (r.0, r.1, r.2)
 }
 
@@ -53,8 +55,9 @@ pub fn transform_report(
   to : @types.Crs,
   x : Double,
   y : Double,
+  grids? : @grid.GridSet,
 ) -> (Double, Double, @operation.TransformationReport) raise @types.CrsError {
-  let r = convert(from, to, x, y, 0.0)
+  let r = convert(from, to, x, y, 0.0, grids_of(grids))
   (r.0, r.1, r.3)
 }
 
@@ -115,12 +118,14 @@ pub fn transform_many(
   from : @types.Crs,
   to : @types.Crs,
   points : Array[(Double, Double)],
+  grids? : @grid.GridSet,
 ) -> Array[(Double, Double)] raise @types.CrsError {
   let out : Array[(Double, Double)] = []
   let src = source_frame(from)
   let rad_to_deg = 1.0 / deg_to_rad
   let dst = target_frame(to)
-  let plan = build_plan(from, to)
+  let gs = grids_of(grids)
+  let plan = build_plan(from, to, gs)
   let pm_from = from.datum().prime_meridian * deg_to_rad
   let pm_to = to.datum().prime_meridian * deg_to_rad
   for point in points {
@@ -146,6 +151,7 @@ pub fn transform_many(
       lon_greenwich,
       geo.1,
       geo.2,
+      gs,
     )
     let result = dst.from_geodetic(shifted.0 - pm_to, shifted.1, shifted.2)
     out.push((result.0, result.1))
@@ -164,12 +170,13 @@ fn convert(
   x : Double,
   y : Double,
   z : Double,
+  grids : @grid.GridSet,
 ) -> (Double, Double, Double, @operation.TransformationReport) raise @types.CrsError {
   let geo = to_geodetic(from, x, y, z)
   let pm_from = from.datum().prime_meridian * deg_to_rad
   let pm_to = to.datum().prime_meridian * deg_to_rad
   let lon_greenwich = geo.0 + pm_from
-  let plan = build_plan(from, to)
+  let plan = build_plan(from, to, grids)
   let rad_to_deg = 1.0 / deg_to_rad
   let op = match pick(plan, lon_greenwich * rad_to_deg, geo.1 * rad_to_deg) {
     Some(op) => op
@@ -191,6 +198,7 @@ fn convert(
     lon_greenwich,
     geo.1,
     geo.2,
+    grids,
   )
   let result = from_geodetic(to, shifted.0 - pm_to, shifted.1, shifted.2)
   let report = @operation.TransformationReport::new(
@@ -219,7 +227,11 @@ pub struct Plan {
 ///   · 用注册表还是用定义文本自带的 towgs84
 ///   · 哪些候选因缺数据被排除（记入 skipped，报告里要给用户看）
 ///   · 有哪些"结果可用性"层面的保留（精度未声明、假定重合等）
-fn build_plan(from : @types.Crs, to : @types.Crs) -> Plan raise @types.CrsError {
+fn build_plan(
+  from : @types.Crs,
+  to : @types.Crs,
+  grids : @grid.GridSet,
+) -> Plan raise @types.CrsError {
   let src = from.datum()
   let dst = to.datum()
   let warnings : Array[String] = []
@@ -272,14 +284,30 @@ fn build_plan(from : @types.Crs, to : @types.Crs) -> Plan raise @types.CrsError 
   let registered = @operation.resolve(src, dst)
   for op in registered {
     if op.needs_grid() {
-      skipped.push(
-        op.code +
-        "（" +
-        op.accuracy_text() +
-        "）更精确，但需要网格数据 " +
-        grid_id_of(op) +
-        "；当前未提供，已跳过",
-      )
+      // 网格类运算分三种情况：数据已加载可执行、数据缺失、格式本版不支持。
+      // 三种都要能被用户看懂，尤其是第三种——把"没实现"说成"缺数据"是骗人。
+      match op.method_kind {
+        NadconGrid =>
+          skipped.push(
+            op.code +
+            "（" +
+            op.accuracy_text() +
+            "）使用 NADCON 的 .las/.los 格式，本版只实现 NTv2（.gsb）解析，已跳过",
+          )
+        _ =>
+          match grids.get(grid_id_of(op)) {
+            Some(_) => candidates.push(op)
+            None =>
+              skipped.push(
+                op.code +
+                "（" +
+                op.accuracy_text() +
+                "）更精确，但需要网格文件 " +
+                grid_id_of(op) +
+                ".gsb；当前未加载，用 --grid 指定文件，索取方式见 docs/DATA.md",
+              )
+          }
+      }
     } else {
       candidates.push(op)
     }
@@ -288,7 +316,7 @@ fn build_plan(from : @types.Crs, to : @types.Crs) -> Plan raise @types.CrsError 
   if candidates.length() == 0 {
     if skipped.length() > 0 {
       raise @types.CrsError::UnsupportedOperation(
-        "只找到网格类运算，但网格数据不可用：" + skipped[0],
+        "只找到网格类运算，但没有一条可以执行：" + skipped[0],
       )
     }
     raise @types.CrsError::UnsupportedOperation(
@@ -359,6 +387,15 @@ fn wgs84_family(key : String) -> Bool {
   key == "CGCS2000" ||
   key == "RGF93" ||
   key == "GDA94"
+}
+
+///|
+/// 可选参数转成实参：`None` 当空集合，调用方不必构造空对象。
+fn grids_of(grids : @grid.GridSet?) -> @grid.GridSet {
+  match grids {
+    Some(g) => g
+    None => @grid.GridSet::empty()
+  }
 }
 
 ///|

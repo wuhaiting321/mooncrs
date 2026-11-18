@@ -149,6 +149,7 @@ pub fn apply_operation(
   lon : Double,
   lat : Double,
   h : Double,
+  grids : @grid.GridSet,
 ) -> (Double, Double, Double) raise @types.CrsError {
   match op.method_kind {
     Identity | Assumed | Ballpark => (lon, lat, h)
@@ -168,7 +169,37 @@ pub fn apply_operation(
       }
       geocentric_to_geodetic(a_to, e2_to, shifted.0, shifted.1, shifted.2)
     }
-    Ntv2Grid | NadconGrid => {
+    Ntv2Grid => {
+      let grid_id = match op.params {
+        Grid(id) => id
+        _ => op.code
+      }
+      let g = match grids.get(grid_id) {
+        Some(g) => g
+        None =>
+          raise @types.CrsError::UnsupportedOperation(
+            "运算 " +
+            op.code +
+            " 需要网格文件 " +
+            grid_id +
+            ".gsb，当前未提供（已登记的网格：" +
+            grids_text(grids) +
+            "）。网格数据不随本库分发，获取方式见 docs/DATA.md",
+          )
+      }
+      // 网格改正工作在"度"上，而管道内部一律用弧度。
+      let lon_deg = lon / deg_to_rad
+      let lat_deg = lat / deg_to_rad
+      match g.apply(lon_deg, lat_deg, reversed=op.reversed) {
+        Some(s) =>
+          ((lon_deg + s.dlon) * deg_to_rad, (lat_deg + s.dlat) * deg_to_rad, h)
+        None =>
+          raise @types.CrsError::UnsupportedOperation(
+            g.outside_message(lon_deg, lat_deg) + "。见 docs/DATA.md 的数据覆盖说明",
+          )
+      }
+    }
+    NadconGrid => {
       let grid_id = match op.params {
         Grid(id) => id
         _ => op.code
@@ -176,10 +207,30 @@ pub fn apply_operation(
       raise @types.CrsError::UnsupportedOperation(
         "运算 " +
         op.code +
-        " 需要网格数据 " +
+        " 使用 NADCON 格式（.las / .los），本版只实现了 NTv2（.gsb）解析。" +
+        "请改用海外的等价 NTv2 版本，或等待 NADCON 支持；说明见 docs/DATA.md（网格标识 " +
         grid_id +
-        "（.gsb / .las），当前未提供。网格数据不随本库分发，获取方式见 docs/DATA.md",
+        "）",
       )
     }
   }
+}
+
+///|
+/// 已加载网格的标识拼成一行，用于报错时说明"你到底加载了什么"。
+fn grids_text(grids : @grid.GridSet) -> String {
+  let ids = grids.ids()
+  if ids.length() == 0 {
+    return "无"
+  }
+  let sb = StringBuilder()
+  let mut i = 0
+  while i < ids.length() {
+    if i > 0 {
+      sb.write_string(" / ")
+    }
+    sb.write_string(ids[i])
+    i = i + 1
+  }
+  sb.to_string()
 }

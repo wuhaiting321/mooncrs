@@ -20,6 +20,7 @@ fn main {
 fn dispatch(args : Array[String]) -> Unit {
   let commands : Array[String] = [
     "transform",
+    "grid",
     "describe",
     "wkt",
     "proj",
@@ -46,6 +47,7 @@ fn dispatch(args : Array[String]) -> Unit {
   let rest = tail(args, at + 1)
   match cmd {
     "transform" => run_transform(rest)
+    "grid" => run_grid(rest)
     "describe" => run_describe(rest)
     "wkt" => run_wkt(rest)
     "proj" => run_proj(rest)
@@ -66,10 +68,17 @@ fn version() -> String {
 /// `transform <源> <目标> <x> <y> [<x> <y> ...]`
 ///
 /// 一次可以给多对坐标，便于批量处理；每行输出一对结果。
-fn run_transform(args : Array[String]) -> Unit {
+fn run_transform(argv : Array[String]) -> Unit {
+  let parsed = match collect_grids(argv) {
+    Some(p) => p
+    None => return
+  }
+  let grids = parsed.0
+  let args = parsed.1
   if args.length() < 4 {
-    println("用法: mooncrs transform <源CRS> <目标CRS> <x> <y> [<x> <y> ...]")
+    println("用法: mooncrs transform [--grid ID=PATH] <源CRS> <目标CRS> <x> <y> [<x> <y> ...]")
     println("示例: mooncrs transform EPSG:4326 EPSG:3857 116.3912 39.9075")
+    println("示例: mooncrs transform --grid conus.gsb EPSG:4267 EPSG:4269 -96.0 32.0")
     return
   }
   let source = args[0]
@@ -92,7 +101,7 @@ fn run_transform(args : Array[String]) -> Unit {
     let y = parse_arg(args[i + 1])
     match (x, y) {
       (Some(px), Some(py)) => {
-        let result = @crs.transform(from, to, px, py) catch {
+        let result = @crs.transform(from, to, px, py, grids=grids) catch {
           err => {
             report(err)
             return
@@ -212,7 +221,8 @@ fn print_help() -> Unit {
   println("用法: mooncrs <命令> [参数...]")
   println("")
   println("命令:")
-  println("  transform <源> <目标> <x> <y> [...]  坐标转换")
+  println("  transform [--grid ID=PATH] <源> <目标> <x> <y> [...]  坐标转换")
+  println("  grid <文件.gsb> [<lon> <lat> ...]   查看网格数据与改正量")
   println("  describe <CRS>                      查看坐标系定义")
   println("  wkt <CRS>                           输出 WKT2")
   println("  proj <CRS>                          输出 PROJ 串")
