@@ -10,8 +10,10 @@
 
 **mooncrs 是一个用 MoonBit 从零实现的坐标参考系（CRS）转换引擎**：
 把 WKT2 / WKT1 / PROJ 串 / EPSG 码这四种真实世界里的坐标系定义喂进去，
-输出任意两种坐标系之间的坐标转换结果，支持 12 种投影方法与 Helmert 七参数基准变换，
-零外部依赖、零网格文件、不调用任何 C 库。
+输出任意两种坐标系之间的坐标转换结果，支持 12 种投影方法、Helmert 七参数与
+NTv2 网格改正。核心库零外部依赖、不调用任何 C 库；网格数据不随库分发（见
+`docs/DATA.md`），读取 `.gsb` 文件的动作只发生在 CLI，且依赖官方扩展库
+`moonbitlang/x` 的 `fs` 包。
 
 ---
 
@@ -19,11 +21,11 @@
 
 | 指标 | 要求 | 实测 | 证据 |
 | --- | --- | --- | --- |
-| MoonBit 代码行数 | ≥ 500 行 | **9 126 行**（实现 7 606 + 测试 1 520） | `find . -name "*.mbt" -not -path "./_build/*" \| xargs wc -l` |
+| MoonBit 代码行数 | ≥ 500 行 | **10 825 行**（实现 8 678 + 测试 2 147） | `find . -name "*.mbt" -not -path "./_build/*" \| xargs wc -l` |
 | 编译 | 通过 | **0 error**（0.1.20261020 零告警；0.1.20261104 对 `derive` 提示弃用，但该版本尚不支持 `#derive`，故无迁移路径；详见第 6 节） | `moon check` |
-| 测试 | 通过 | **84 / 84** | `moon test` |
+| 测试 | 通过 | **100 / 100** | `moon test` |
 | MVP 完整 | 能完成一次真实转换 | 四种输入 → 十二种投影 → 三种坐标系类型 → CLI 可用 | 见第 3 节 |
-| 依赖 | 不引入外部库 | 只依赖 `moonbitlang/core` 的 `math` / `env` / `debug` | 各 `moon.pkg` |
+| 依赖 | 核心库不引入外部库 | 核心包（types/projection/wkt/projstr/epsg/operation/grid/crs）只依赖 `moonbitlang/core`；仅 `cmd/main` 额外依赖 `moonbitlang/x/fs` 读取 `.gsb`，版本锁定在 `moon.mod` | 各 `moon.pkg` |
 
 代码规模分布：
 
@@ -34,11 +36,12 @@
 | `wkt` | 1 149 | 196 |
 | `projstr` | 953 | 168 |
 | `epsg` | 277 | 144 |
-| `operation` | 1 188 | 138 |
-| `crs` | 1 318 | 556 |
-| `cmd/main` | 282 | — |
+| `operation` | 1 219 | 138 |
+| `grid` | 734 | 493 |
+| `crs` | 1 406 | 729 |
+| `cmd/main` | 530 | — |
 | 根包 `mooncrs.mbt` | 11 | — |
-| **合计** | **7 606** | **1 520** |
+| **合计** | **8 678** | **2 147** |
 
 ---
 
@@ -51,7 +54,8 @@ mooncrs/
 ├── mooncrs.mbt                版本与简介
 ├── README.md                  主文档
 ├── docs/
-│   └── ACCEPTANCE.md          本文档
+│   ├── ACCEPTANCE.md          本文档
+│   └── DATA.md                网格数据来源、许可与校验方法
 ├── types/                     数据模型
 │   ├── error.mbt              6 类错误
 │   ├── ellipsoid.mbt          10 个标准椭球
@@ -77,6 +81,10 @@ mooncrs/
 │   ├── build.mbt              语义层 → Crs（含 +zone/+south 展开）
 │   └── writer.mbt             Crs → PROJ 串
 ├── epsg/registry.mbt          内置 250 个 EPSG 码
+├── grid/                      NTv2 网格（0.2 新增）
+│   ├── model.mbt              SubGrid / Ntv2Grid / GridSet
+│   ├── ntv2.mbt               .gsb 二进制解析（严格校验，只读小端 SECONDS）
+│   └── shift.mbt              双线性插值、反解迭代、越界说明
 ├── operation/                 坐标运算注册表（0.2 新增）
 │   ├── model.mbt              OperationMethod / CoordinateOperation / TransformationReport
 │   ├── registry.mbt           带适用范围与标称精度的运算记录
@@ -146,11 +154,11 @@ $ moon run cmd/main -- proj EPSG:27700   # WKT/EPSG → PROJ 串
 ```bash
 $ moon build --target wasm-gc --release
 $ ls -l _build/wasm-gc/release/build/cmd/main/main.wasm
-115387 字节
+156029 字节
 ```
 
-整个引擎（含 250 个 EPSG 定义与 CLI）编译为 113 KB 的 wasm-gc 模块，
-无外部数据文件。`moon build --target wasm` 同样通过。
+整个引擎（含 250 个 EPSG 定义、NTv2 解析与 CLI）编译为 156 KB 的 wasm-gc 模块，
+无外部数据文件。`moon build --target wasm` 与 `--target js` 同样通过。
 
 ### 3.6 注册表查询
 
@@ -212,7 +220,7 @@ OSGB36 (52°39′27.2531″N, 1°43′4.5177″E, h=0)
 
 ---
 
-## 5. 测试清单（84 个）
+## 5. 测试清单（100 个）
 
 | 文件 | 数量 | 覆盖内容 |
 | --- | ---: | --- |
@@ -224,12 +232,14 @@ OSGB36 (52°39′27.2531″N, 1°43′4.5177″E, h=0)
 | `crs/geodetic_test.mbt` | 6 | 赤道/极点精确值、ECEF 往返、Helmert 正反与两种约定 |
 | `operation/operation_test.mbt` | 11 | 注册表字段完整性、多运算排序、范围判定、无运算/假定重合、反向保参 |
 | `crs/transform_a_test.mbt` | 11 | 严格模式报错、范围外报错、网格跳过提示、内嵌参数警告、报告确定性、无孤立基准 |
+| `grid/ntv2_test.mbt` | 11 | 头字段解析、节点/格内插值精度、范围外拒答、正东经识别、反解闭环、重叠子网格、坏文件五例、空输入、网格集合 |
+| `crs/transform_grid_test.mbt` | 5 | 缺文件提示、提供网格后改走网格、超出覆盖报错、NADCON 格式未实现、结果可复现 |
 
 运行：
 
 ```bash
 moon test
-# Total tests: 84, passed: 84, failed: 0.
+# Total tests: 100, passed: 100, failed: 0.
 ```
 
 ---
@@ -388,4 +398,87 @@ moon run cmd/main -- transform EPSG:4267 EPSG:4326 -150.0 61.0
 
 # 跨基准：报告里说明跳过了更精确的网格运算
 moon run cmd/main -- transform EPSG:27700 EPSG:4258 651409.903 313177.270
+```
+
+---
+
+## 10. 0.2 第二阶段：网格改正（B）
+
+初审意见的第 2、3 条是同一件事的两面：**「零数据文件的方案不足以支撑任意跨基准
+精确转换」**、**「用户如何判断结果是否可用」**。前者要的是"能消费官方数据"，
+后者要的是"把数据边界说清楚"。这两件事靠加参数解决不了，得让数据真正进入管道。
+
+### 10.1 交付了什么
+
+| 交付物 | 位置 | 作用 |
+| --- | --- | --- |
+| NTv2 解析器 | `grid/ntv2.mbt`（734 行含模型） | 读 `.gsb`：11 条文件头记录、每子文件 11 条记录、4×float32 节点；字段偏移、字节序、经度约定、节点数一致性逐项校验 |
+| 插值与反解 | `grid/shift.mbt` | 双线性插值（规范只定义双线性）、不动点迭代反解（含收敛判据）、越界说明文本 |
+| 网格集合 | `grid/model.mbt` | 按"逻辑标识"索引（不是文件名），多个网格可共存 |
+| 管道接入 | `crs/transform.mbt`、`crs/geodetic.mbt` | 网格类运算在数据可得时成为候选并优先选中；不可得时跳过并写明缺哪个文件 |
+| CLI | `cmd/main/grid_cli.mbt` | `--grid ID=PATH` 加载；`grid <文件> [lon lat]` 查看覆盖范围与改正量 |
+| 数据说明 | `docs/DATA.md` | 需要哪些文件、从哪来、什么许可、怎么验证、有什么限制 |
+
+### 10.2 完成规定逐条
+
+| # | 规定 | 状态 | 证据 |
+| --- | --- | --- | --- |
+| B1 | 不依赖外部数据，测试内合成 `.gsb` | ✅ | `grid/ntv2_test.mbt` 的 `build_gsb()` 按真实二进制布局写字节（含"故意做坏"的开关） |
+| B2 | 节点处误差 < 1e-9 角秒 | ✅ | "节点处读回误差小于 1e-9 角秒"：41×41 节点全遍历 |
+| B3 | 节点之间误差 < 1e-6 角秒 | ✅ | "节点之间插值误差小于 1e-6 角秒"：5×5 个格内位置；双线性对线性场精确，实测受 float32 存储限制在 1e-7 量级 |
+| B4 | 范围外返回 `None`，不外推 | ✅ | "范围外返回空而不外推"：四角（含边界）有效，四边外 0.001° 拒答，远处点拒答 |
+| B5 | 反解可用且收敛 | ✅ | "网格正反解闭环"：4 个点往返 < 1e-9 度，迭代次数落在 1..6 |
+| B6 | 坏文件必须报错 | ✅ | "坏文件一律报错"：随机二进制、标签错位、`GS_COUNT` 不符、截断、`GS_TYPE` 非 SECONDS 五例；"空输入给出可读错误" |
+| B7 | 多子网格取最小 | ✅ | "重叠子网格取面积最小的" |
+| B8 | 缺网格时的错误消息可操作 | ✅ | `crs/transform_grid_test.mbt` "未加载网格时报错指出缺哪个文件"：消息含文件名与 `docs/DATA.md` |
+| — | 真实数据端到端校验 | ✅ | 见 10.3：用 PROJ 自带真实 `.gsb` 与其测试套件期望值对照 |
+
+### 10.3 真实网格校验（不是自己跟自己对）
+
+`docs/DATA.md` 第 5 节给了完整复现步骤。结论：
+
+| 点 | 本库输出 | 外部参照 | 差异 |
+| --- | --- | --- | --- |
+| `-82 42`（ONwinsor 子网格） | 纬 +0.16020″、经 +0.38963″ | PROJ `test_cs2cs_ntv2.yaml`：`82°W 42°N → 81°59'59.6104"W 42°0'0.1602"N`，即 +0.1602″ / +0.3896″ | 3×10⁻⁵ 角秒（显示舍入） |
+| `-115.58333333 51.25`（ALbanff 子网格） | 纬 +0.07669″、经 −3.77374″ | PROJ 逆解得 `-115.58228512 51.24997866`，反推 +0.0768″ / −3.7736″ | 2×10⁻⁴ 角秒（约 6 mm，两点相距 0.001° 所致） |
+
+这条校验覆盖了整条链路：字节序 → 记录偏移 → 正西经度 → 东南角起排 → 双线性 →
+单位换算。任何一环错了，数值都对不上。
+
+### 10.4 行为变更
+
+| 项 | 之前 | 现在 |
+| --- | --- | --- |
+| 网格类运算 | 一律跳过，"需要网格数据" | 数据在则执行、不在则跳过并写明缺哪个文件 |
+| CLI 子命令 | 7 条 | 8 条（新增 `grid`） |
+| CLI 参数 | 无 | `transform` 支持 `--grid ID=PATH`（可重复） |
+| 依赖 | 只有 `moonbitlang/core` | `cmd/main` 增加 `moonbitlang/x/fs`（读文件）；**核心包仍然零外部依赖** |
+| wasm-gc 体积 | 134 789 字节 | 156 029 字节（+21 KB：NTv2 解析 + 文件 IO 桩） |
+| `EPSG:1241`（NADCON） | 登记为 NTv2 方法 | 改为 `NadconGrid`：报"格式未实现"，不再冒充"缺数据" |
+
+### 10.5 当前偏差（如实记录）
+
+| 项 | 情况 | 说明 |
+| --- | --- | --- |
+| NADCON（`.las/.los`） | **未实现** | 只解析 NTv2。相关运算明确报"格式未实现"，不伪装成缺数据 |
+| 大端文件 / MINUTES / DEGREES | **不支持** | 明确报错并说明原因，不猜测 |
+| 网格不覆盖时 | **不降级** | 报错并给出覆盖范围。自动改用低精度路径会把"数据不够"伪装成"算完了" |
+| 反解中的子网格切换 | **不复制 PROJ 行为** | PROJ 在迭代中允许从子网格切到母网格；本库固定用输入点命中的那个，否则正反两个方向会用到不同网格，无法解释 |
+| 仓库内网格数据 | **0 个** | 版权与体积原因，见 `docs/DATA.md` 第 1 节 |
+| `EPSG:7709` 的端到端验证 | **未做** | 需要 OSTN15 文件（需注册下载），本机与 CI 都不具备。可用性由合成网格的联动测试覆盖，数学正确性由加拿大真实网格覆盖 |
+
+### 10.6 复现
+
+```bash
+moon check --deny-warn     # 0 error, 0 warning
+moon test                  # 100 passed
+
+# 网格摘要（js 目标即可，不需要 MSVC）
+moon run cmd/main --target js -- grid ./ntv2_0_downsampled.gsb
+moon run cmd/main --target js -- grid ./ntv2_0_downsampled.gsb -82 42
+
+# 网格加载失败：路径与原因都给出
+moon run cmd/main --target js -- transform --grid /nope/x.gsb EPSG:4277 EPSG:4258 1.7179 52.6576
+# 网格不覆盖该点：给出网格范围，而不是静默降级
+moon run cmd/main --target js -- transform --grid OSTN15_NTv2_OSGBtoETRS=./ntv2_0_downsampled.gsb EPSG:4277 EPSG:4258 1.7179 52.6576
 ```
