@@ -74,11 +74,24 @@ fn run_transform(argv : Array[String]) -> Unit {
     None => return
   }
   let grids = parsed.0
-  let args = parsed.1
+  // `--explain` 与 `--grid` 互不干扰：先收网格，再把这个开关从剩余参数里挑出来。
+  // 不放进 collect_grids，是因为那个函数管的是"要加载什么数据"，不是"要多说什么话"。
+  let mut explain = false
+  let args : Array[String] = []
+  for a in parsed.1 {
+    if a == "--explain" {
+      explain = true
+    } else {
+      args.push(a)
+    }
+  }
   if args.length() < 4 {
-    println("用法: mooncrs transform [--grid ID=PATH] <源CRS> <目标CRS> <x> <y> [<x> <y> ...]")
+    println(
+      "用法: mooncrs transform [--grid ID=PATH] [--explain] <源CRS> <目标CRS> <x> <y> [<x> <y> ...]",
+    )
     println("示例: mooncrs transform EPSG:4326 EPSG:3857 116.3912 39.9075")
     println("示例: mooncrs transform --grid conus.gsb EPSG:4267 EPSG:4269 -96.0 32.0")
+    println("示例: mooncrs transform --explain EPSG:4277 EPSG:4258 1.7179 52.6576")
     return
   }
   let source = args[0]
@@ -101,13 +114,18 @@ fn run_transform(argv : Array[String]) -> Unit {
     let y = parse_arg(args[i + 1])
     match (x, y) {
       (Some(px), Some(py)) => {
-        let result = @crs.transform(from, to, px, py, grids=grids) catch {
+        // 默认也走 transform_report：多构造一个报告的开销可以忽略，但换来的是
+        // "加不加 --explain 用的是同一条管道"，不会出现解释与实际结果对不上的情况。
+        let result = @crs.transform_report(from, to, px, py, grids=grids) catch {
           err => {
             report(err)
             return
           }
         }
         println(show(result.0) + " " + show(result.1))
+        if explain {
+          println(result.2.to_text())
+        }
       }
       _ => {
         println("错误: 无法解析坐标 '" + args[i] + "' 或 '" + args[i + 1] + "'")
