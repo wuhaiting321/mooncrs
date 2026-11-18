@@ -25,6 +25,11 @@ jobs:
       - name: Toolchain version
         run: moon version
 
+      # cmd/main 依赖 moonbitlang/x/fs（读取 .gsb）。runner 上的 registry
+      # 索引是空壳，不先更新会报 "module was not found in the registry"。
+      - name: Update registry index
+        run: moon update
+
       - name: Check
         run: moon check
 
