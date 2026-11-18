@@ -63,6 +63,15 @@ pub fn missing_message(
   from : @types.Datum,
   to : @types.Datum,
 ) -> String raise @types.CrsError {
+  // 定义里根本没写基准时，说"没有 XIAN80 → WGS84 的运算"会让人以为
+  // 只是缺记录；真实原因是连基准身份都没有，必须先补定义。
+  if from.key == "UNKNOWN" || to.key == "UNKNOWN" {
+    let side = if from.key == "UNKNOWN" { from } else { to }
+    return "无法确定基准：" +
+      side.name +
+      " 的定义里没有 +datum 或 TOWGS84，也没有可识别的基准名称，因此无法匹配坐标运算。" +
+      "请在定义中补 +datum=… 或 +towgs84=…，或改用带 EPSG 码的坐标系"
+  }
   let partners = partners_of(from.key)
   let known = if partners.length() == 0 {
     "该基准在注册表中没有任何已登记的运算"
