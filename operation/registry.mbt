@@ -186,6 +186,26 @@ pub fn all() -> Array[CoordinateOperation] raise @types.CrsError {
   )
   ops.push(
     seven(
+      "LOCAL:DHDN_WGS84_7P",
+      "DHDN → WGS 84（7 参数）",
+      598.1,
+      73.7,
+      418.2,
+      0.202,
+      0.045,
+      -2.455,
+      6.7,
+      @types.PositionVector,
+      "DHDN",
+      "WGS84",
+      germany(),
+      Some(3.0),
+      "PROJ datum table: potsdam",
+      "与 DHDN→ETRS89 同一套参数；本库不做多跳串联，因此目标为 WGS84 时需要这条独立记录",
+    ),
+  )
+  ops.push(
+    seven(
       "LOCAL:TM65_WGS84_7P",
       "TM65 → WGS 84（7 参数）",
       482.06,

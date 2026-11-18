@@ -148,3 +148,42 @@ test "报告里的步骤按执行顺序列出，且包含实际运算标识" {
   }
   assert_true(hit)
 }
+
+///|
+/// 基准标识 → 基准对象。只为测试用：注册表按 `key` 匹配，这里按同一套
+/// `key` 造出对象，验证"注册表里出现的每个基准都能真的转出去"。
+fn datum_of_key(key : String) -> @types.Datum? raise @types.CrsError {
+  match key {
+    "WGS84" => Some(@types.wgs84_datum)
+    "NAD27" => Some(@types.nad27_datum)
+    "OSGB36" => Some(@types.osgb36_datum)
+    "CGCS2000" => Some(@types.cgcs2000_datum)
+    "ETRS89" => Some(@types.Datum::new("ETRS89", "ETRS89", @types.grs80))
+    "RGF93" => Some(@types.Datum::new("RGF93", "RGF93", @types.grs80))
+    "NAD83" => Some(@types.Datum::new("NAD83", "NAD83", @types.grs80))
+    "GDA94" => Some(@types.Datum::new("GDA94", "GDA94", @types.grs80))
+    "BD72" => Some(@types.Datum::new("BD72", "BD72", @types.intl1924))
+    "ED50" => Some(@types.Datum::new("ED50", "ED50", @types.intl1924))
+    "CH1903" => Some(@types.Datum::new("CH1903", "CH1903", @types.bessel1841))
+    "DHDN" => Some(@types.Datum::new("DHDN", "DHDN", @types.bessel1841))
+    "TM65" => Some(@types.Datum::new("TM65", "TM65", @types.airy1830))
+    "WGS72" => Some(@types.Datum::new("WGS72", "WGS72", @types.wgs72))
+    _ => None
+  }
+}
+
+///|
+test "注册表里出现的每个基准都能转到 WGS84，没有孤立记录" {
+  for key in @operation.datum_keys() {
+    let datum = match datum_of_key(key) {
+      Some(d) => d
+      None => {
+        assert_true(false)
+        continue
+      }
+    }
+    let ops = @operation.resolve(datum, @types.wgs84_datum)
+    // 自己就是 WGS84 时走恒等；其余必须有至少一条登记运算
+    assert_true(ops.length() >= 1)
+  }
+}
