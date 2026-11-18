@@ -55,4 +55,4 @@ jobs:
 
       - name: Code size
         run: |
-          find . -name "*.mbt" -not -path "./_build/*" | xargs wc -l | tail -1
+          find . -name "*.mbt" -not -path "./_build/*" -not -path "./.mooncakes/*" | xargs wc -l | tail -1

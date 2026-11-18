@@ -27,7 +27,7 @@ MoonBit 生态中长期缺位。截至 2026-11，在 mooncakes.io、GitHub
 （`moonbit + crs/epsg/proj`）等可检索范围内，未发现可直接复用的 CRS 引擎。
 本项目把它补齐，并刻意选择"核心零依赖"的路线：不绑定 PROJ、不调用 C 库、
 不用 FFI，核心包只依赖 `moonbitlang/core`，250 个 EPSG 定义编译进二进制，
-整个引擎加 CLI 编译为 **约 156 KB** 的 wasm-gc 模块，可直接分发到浏览器与边缘函数。
+整个引擎加 CLI 编译为 **约 158 KB** 的 wasm-gc 模块，可直接分发到浏览器与边缘函数。
 
 基准变换不是"一套参数走天下"。同一个 OSGB36 → ETRS89，英国官方有 OSTN15 网格
 （0.1 m）与七参数（2 m）两条路径；同一对基准在不同地区的参数也可能不同。因此
@@ -35,7 +35,13 @@ MoonBit 生态中长期缺位。截至 2026-11，在 mooncakes.io、GitHub
 出处，按点选区；缺数据时明确报错，不再静默按"基准重合"返回原值。高精度路径所需
 的网格数据不随库分发，获取与校验方式见 `docs/DATA.md`。
 
-当前规模：**10 825 行 MoonBit**（实现 8 678 + 测试 2 147），**100 个测试全部通过**，
+**精度不是靠"公式算例吻合"声明的。** 本库用德国联邦制图与大地测量局（BKG）公开发布
+的 31 个测试点（真实经纬度，覆盖 47.6°N–54.7°N 德国全境）逐点对账：七参数路径中位
+误差 **0.76 m**、最大 **2.55 m**（标称 3 m，31/31 在标称内）；同一批点换成 BETA2007
+网格后残差落到 **2 µm** 量级，即 float32 的存储量化步长。逐点数字、数据出处与一行
+复现命令见 [`docs/VERIFICATION.md`](docs/VERIFICATION.md)。
+
+当前规模：**10 990 行 MoonBit**（实现 8 709 + 测试 2 281），**103 个测试全部通过**，
 `moon check` 零错误（0.1.20261020 上零告警；0.1.20261104 起对 `derive` 语法给出
 弃用提示，而该版本尚未实现替代写法 `#derive`——实测报 `unknown attribute`，
 属工具链过渡状态，不影响构建与测试）。正确性以 EPSG 官方公布算例为准（英国国家格网
@@ -73,7 +79,7 @@ let xy = @crs.transform_many(from, to, points)
 ```
 
 输出等长的平面坐标数组，可直接喂给 Canvas / WebGL。过去这条链路必须引 proj4js
-（约 200 KB）或回后端算；本项目编到 wasm-gc 约 156 KB，无 FFI、基础转换不需要
+（约 200 KB）或回后端算；本项目编到 wasm-gc 约 158 KB，无 FFI、基础转换不需要
 任何数据文件，
 且 `EPSG:4326`、`+proj=utm +zone=50`、`.prj` 里的 WKT 三种写法可混用，
 数据源不统一时不必写适配层。
@@ -98,6 +104,31 @@ $ moon run cmd/main -- transform --grid OSTN15_NTv2_OSGBtoETRS.gsb EPSG:4326 EPS
 这是"错得最隐蔽"的场景：七参数漏了、旋转约定（EPSG 9606/9607）搞反了、椭球用错
 了，或者该用网格却用了七参数，结果都仍然"看起来正常"，只是整体偏几十米到几百米。
 本项目对两种旋转约定各有独立测试，并用 EPSG 官方算例逐位校验。
+
+加上 `--explain` 会把这次的选择摊开：用了哪条运算、标称精度多少、范围在哪、有没有
+因为缺文件跳过了更精确的方案。
+
+```bash
+$ moon run cmd/main -- transform --explain EPSG:4277 EPSG:4258 1.7179 52.6576
+1.7160303624906261 52.65800829473848
+运算    LOCAL:OSGB36_ETRS89_7P  OSGB36 → ETRS89（7 参数）
+方法    七参数（位置向量）
+精度    2 m
+范围    [49, -9] .. [61, 2]
+出处    PROJ datum table: osgb36
+说明    与 OSGB36→WGS84 同一套参数，经 WGS84/ETRS89 重合关系转达
+步骤
+        · 入参换轴换单位 → OSGB36 上的大地坐标
+        · 坐标运算 LOCAL:OSGB36_ETRS89_7P（七参数（位置向量））
+        · 正算到 ETRS89 并换算单位
+已跳过
+        · EPSG:7709（0.1 m）更精确，但需要网格文件 OSTN15_NTv2_OSGBtoETRS.gsb；
+          当前未加载，用 --grid 指定文件，索取方式见 docs/DATA.md
+```
+
+**同一套方法在德国场地上做过逐点验证**：31 个 BKG 官方点，七参数中位 0.76 m、
+最大 2.55 m；换成 BETA2007 网格后 2 µm。这条实验说明精度差异来自**数据**而不是
+算法——也正是"一套七参数走天下"站不住的原因。
 
 **边界要说清楚：本库不承担放样、地籍与成果提交所需的精度担保。** 放样精度来自
 现场控制点联测与本地校准，不来自基准转换；即便最好的公开网格（OSTN15）也带 0.1 m
@@ -140,10 +171,12 @@ let out = @crs.transform(c, @crs.parse("EPSG:4326"), e, n)
 - 内置 250 个 EPSG 码注册表，其中 UTM 与 CGCS2000 三度带按编号规则生成而非手抄
 - 提供 `Crs → WKT2` 与 `Crs → PROJ 串` 的反向生成，支持四种格式互转
 - 提供固定六步转换管道，以及 `transform` / `transform_3d` / `transform_many` 三个入口
+- 提供 31 个官方点位的逐点残差验证（`docs/VERIFICATION.md`），数据出处、原始输出与复现命令齐全
+- 提供 `--explain`：每次转换打印所用运算、方法、标称精度、适用范围、跳过的更优路径与警告
 - 提供 6 类显式错误（Parse / Invalid / UnsupportedProjection / UnsupportedOperation / NotFound / Domain），全部 `raise`，不做静默降级
 - 提供 CLI 八条子命令：`transform` / `grid` / `describe` / `wkt` / `proj` / `list` / `search` / `version`
-- 提供 wasm、wasm-gc、js、native 四目标构建，CI 自动验证 wasm-gc 与 native，wasm-gc 产物约 156 KB
-- 提供 100 个自动化测试，覆盖 EPSG 官方案例、12 种投影闭环、跨基准往返、数学性质（Albers 等积性、Helmert 双约定），以及"该失败时必须失败"的反例（范围外、缺数据、坏网格文件）
+- 提供 wasm、wasm-gc、js、native 四目标构建，CI 自动验证 wasm-gc 与 native，wasm-gc 产物约 158 KB
+- 提供 103 个自动化测试，覆盖 EPSG 官方案例、12 种投影闭环、跨基准往返、数学性质（Albers 等积性、Helmert 双约定）、31 个官方点位的残差回归，以及"该失败时必须失败"的反例（范围外、缺数据、坏网格文件）
 
 ## 原创与参考说明
 

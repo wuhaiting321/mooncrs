@@ -21,9 +21,9 @@ NTv2 网格改正。核心库零外部依赖、不调用任何 C 库；网格数
 
 | 指标 | 要求 | 实测 | 证据 |
 | --- | --- | --- | --- |
-| MoonBit 代码行数 | ≥ 500 行 | **10 825 行**（实现 8 678 + 测试 2 147） | `find . -name "*.mbt" -not -path "./_build/*" \| xargs wc -l` |
+| MoonBit 代码行数 | ≥ 500 行 | **10 990 行**（实现 8 709 + 测试 2 281） | `find . -name "*.mbt" -not -path "./_build/*" -not -path "./.mooncakes/*" \| xargs wc -l` |
 | 编译 | 通过 | **0 error**（0.1.20261020 零告警；0.1.20261104 对 `derive` 提示弃用，但该版本尚不支持 `#derive`，故无迁移路径；详见第 6 节） | `moon check` |
-| 测试 | 通过 | **100 / 100** | `moon test` |
+| 测试 | 通过 | **103 / 103** | `moon test` |
 | MVP 完整 | 能完成一次真实转换 | 四种输入 → 十二种投影 → 三种坐标系类型 → CLI 可用 | 见第 3 节 |
 | 依赖 | 核心库不引入外部库 | 核心包（types/projection/wkt/projstr/epsg/operation/grid/crs）只依赖 `moonbitlang/core`；仅 `cmd/main` 额外依赖 `moonbitlang/x/fs` 读取 `.gsb`，版本锁定在 `moon.mod` | 各 `moon.pkg` |
 
@@ -36,12 +36,12 @@ NTv2 网格改正。核心库零外部依赖、不调用任何 C 库；网格数
 | `wkt` | 1 149 | 196 |
 | `projstr` | 953 | 168 |
 | `epsg` | 277 | 144 |
-| `operation` | 1 219 | 138 |
+| `operation` | 1 232 | 138 |
 | `grid` | 734 | 493 |
-| `crs` | 1 406 | 729 |
-| `cmd/main` | 530 | — |
+| `crs` | 1 406 | 863 |
+| `cmd/main` | 548 | — |
 | 根包 `mooncrs.mbt` | 11 | — |
-| **合计** | **8 678** | **2 147** |
+| **合计** | **8 709** | **2 281** |
 
 ---
 
@@ -55,7 +55,8 @@ mooncrs/
 ├── README.md                  主文档
 ├── docs/
 │   ├── ACCEPTANCE.md          本文档
-│   └── DATA.md                网格数据来源、许可与校验方法
+│   ├── DATA.md                网格数据来源、许可与校验方法
+│   └── VERIFICATION.md        官方点位逐点残差报告
 ├── types/                     数据模型
 │   ├── error.mbt              6 类错误
 │   ├── ellipsoid.mbt          10 个标准椭球
@@ -95,6 +96,10 @@ mooncrs/
 │   ├── transform.mbt          六步管道、运算选择、严格模式与降级入口、批量
 │   ├── parse.mbt              四种输入格式判别
 │   └── describe.mbt           人类可读描述
+├── verification/              精度验证（0.2 新增，非产品代码）
+│   ├── data/dhdn_bkg_points.csv   BKG 官方 31 点（带出处）
+│   ├── run_verification.py    驱动 CLI、逐点算残差、出统计
+│   └── results/               每次运行的明细与汇总
 └── cmd/main/main.mbt          CLI
 ```
 
@@ -154,10 +159,10 @@ $ moon run cmd/main -- proj EPSG:27700   # WKT/EPSG → PROJ 串
 ```bash
 $ moon build --target wasm-gc --release
 $ ls -l _build/wasm-gc/release/build/cmd/main/main.wasm
-156029 字节   # CI（工具链 0.1.20261104）实测 155714 字节，差异来自编译器版本
+157678 字节   # 工具链版本不同会有几 KB 差异，以 CI 日志为准
 ```
 
-整个引擎（含 250 个 EPSG 定义、NTv2 解析与 CLI）编译为 156 KB 的 wasm-gc 模块，
+整个引擎（含 250 个 EPSG 定义、NTv2 解析与 CLI）编译为约 158 KB 的 wasm-gc 模块，
 无外部数据文件。`moon build --target wasm` 与 `--target js` 同样通过。
 
 ### 3.6 注册表查询
@@ -220,7 +225,7 @@ OSGB36 (52°39′27.2531″N, 1°43′4.5177″E, h=0)
 
 ---
 
-## 5. 测试清单（100 个）
+## 5. 测试清单（103 个）
 
 | 文件 | 数量 | 覆盖内容 |
 | --- | ---: | --- |
@@ -234,12 +239,13 @@ OSGB36 (52°39′27.2531″N, 1°43′4.5177″E, h=0)
 | `crs/transform_a_test.mbt` | 11 | 严格模式报错、范围外报错、网格跳过提示、内嵌参数警告、报告确定性、无孤立基准 |
 | `grid/ntv2_test.mbt` | 11 | 头字段解析、节点/格内插值精度、范围外拒答、正东经识别、反解闭环、重叠子网格、坏文件五例、空输入、网格集合 |
 | `crs/transform_grid_test.mbt` | 5 | 缺文件提示、提供网格后改走网格、超出覆盖报错、NADCON 格式未实现、结果可复现 |
+| `crs/transform_d_test.mbt` | 3 | BKG 官方 31 点残差回归、DHDN 链路双运算登记、EPSG:15948 的网格绑定 |
 
 运行：
 
 ```bash
 moon test
-# Total tests: 100, passed: 100, failed: 0.
+# Total tests: 103, passed: 103, failed: 0.
 ```
 
 ---
@@ -481,4 +487,92 @@ moon run cmd/main --target js -- grid ./ntv2_0_downsampled.gsb -82 42
 moon run cmd/main --target js -- transform --grid /nope/x.gsb EPSG:4277 EPSG:4258 1.7179 52.6576
 # 网格不覆盖该点：给出网格范围，而不是静默降级
 moon run cmd/main --target js -- transform --grid OSTN15_NTv2_OSGBtoETRS=./ntv2_0_downsampled.gsb EPSG:4277 EPSG:4258 1.7179 52.6576
+```
+
+---
+
+## 11. 0.2 第三阶段：实地精度验证（D）
+
+前面两个阶段解决了"能不能做"和"有没有数据"；这一阶段回答"做出来到底差多少米"。
+驳回意见第 4 条原话是「公式算例吻合也不能证明实地址转换精度」——教材算例只能证明
+代码抄对了公式，证明不了真实经纬度上的误差，也证明不了用户该不该信这个结果。
+
+### 11.1 交付了什么
+
+| 交付物 | 位置 | 作用 |
+| --- | --- | --- |
+| 官方点位数据 | `verification/data/dhdn_bkg_points.csv` | 德国 BKG 发布的 31 个成对坐标，真实经纬度，覆盖 47.6°N–54.7°N |
+| 验证脚本 | `verification/run_verification.py` | 驱动 CLI、逐点算 dx/dy/合成、出统计与明细 |
+| 逐点报告 | `docs/VERIFICATION.md` | 31 行明细、统计、判读、未验证清单、复现命令 |
+| 回归测试 | `crs/transform_d_test.mbt` | 把 31 点的 7 参数残差固化进 `moon test`（不依赖网格文件） |
+| 新运算 | `EPSG:15948` | DHDN → ETRS89 via BETA2007 网格，与 7 参数并存 |
+| `--explain` | `cmd/main/main.mbt` | 打印本次所用的运算、精度、范围、跳过的更优路径 |
+
+### 11.2 完成规定逐条
+
+| # | 规定 | 状态 | 证据 |
+| --- | --- | --- | --- |
+| D1 | 外部数据不依赖第三方实现 | ✅ | 只用 BKG 官方点位与 BKG 网格，未调用 PROJ/pyproj（本机装不上 pyproj，反而逼出更干净的证据链） |
+| D2 | 每点给 dx/dy 与合成距离，≤ 标称 × 2 | ✅ | 7 参数：31/31 ≤ 6 m（实测最大 2.55 m）；网格：31/31 ≤ 0.2 m（实测最大 4.7 µm） |
+| D3 | 禁止调参凑数，文档设"是否调参"列 | ✅ | `docs/VERIFICATION.md` §7 全填"否"，并给出 `git log -S` 反查命令（两次提交都是新增记录，无改数） |
+| D4 | 同一基准对、网格与 3/7 参数残差比 ≥ 3 倍 | ✅ | 中位 0.761 m vs 2.0 µm；即使按"保守口径"（网格取标称 0.1 m）也是 **7.6 倍** |
+| D5 | 残差超限要原样记录 | ✅ | 未触发（31 点全部在标称内），规则写进完成规定 |
+| D6 | 至少 3 条链路有真实数字 | ⚠️ **2 条** | DHDN→ETRS89（31 点，绝对真值）、ED50→ETRS89（1 点，绝对真值）。其余 3 条见 11.5 的未验证清单与原因 |
+
+D6 没达标，原因是拿不到可引用的官方点位，不是没跑：OSGB36 的 OSTN15 需注册下载、
+NADCON 是未实现的格式、swisstopo 与 IGN Belgium 的在线服务本机网络不通。按"不许编"
+的原则写成"未验证"，比凑一个数字诚实。
+
+### 11.3 关键数字
+
+| 链路 | 运算 | 标称 | 中位 | P95 | 最大 | 在 2×标称内 |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| DHDN→ETRS89 | `LOCAL:DHDN_ETRS89_7P` | 3 m | 0.761 m | 1.601 m | 2.548 m | 31/31 |
+| DHDN→ETRS89 | `EPSG:15948`（BETA2007） | 0.1 m | 2.0 µm | 4.4 µm | 4.7 µm | 31/31 |
+| ED50→ETRS89 | `LOCAL:ED50_ETRS89_3P` | 10 m | 5.43 m | 5.43 m | 5.43 m | 1/1 |
+
+7 参数误差分布无离群点（<0.5 m 有 10 点、<1 m 有 19 点、<2 m 有 29 点），最大误差
+出现在德国西南边境，正是 DHDN 与 ETRS89 差异最大的区域——方向合理，不是随机噪声。
+
+### 11.4 一个必须说清楚的数字：2 µm
+
+网格路径残差只有 2 µm，看着像"完美得可疑"。原因是**这 31 个点同时是 BETA2007 格网
+的生成控制点**，BKG 发布它们的用途就是让各软件核对"有没有正确读出并插值这份格网"。
+
+所以它证明的是：NTv2 二进制解析、双线性插值、度/弧度换算、椭球参数、运算分派全都对。
+它**不**证明格网本身的绝对精度（那是 BKG 评估的 0.1 m 级，需要独立 GNSS 点位）。
+
+量级也印证这一点：节点值用 float32 存储，3 角秒量级的改正在 float32 下量化步长约
+5 µm。残差正好落在存储精度上，说明管道没引入额外误差——**这是能力上限，不是精度承诺**。
+
+### 11.5 未验证清单
+
+| 链路 | 状态 | 原因 |
+| --- | --- | --- |
+| OSGB36→ETRS89（7 参数） | 未做点位验证 | OSTN15 需注册下载，本机与 CI 都取不到；参数本身是 EPSG:1314 官方值 |
+| OSGB36→ETRS89（OSTN15 网格） | 未做 | 同上，缺 `.gsb`；NTv2 算法已由 BETA2007 与加拿大网格两条真实数据验证 |
+| NAD27→NAD83（3 参数） | 未做点位验证 | NGS 的 NADCON 是 `.las/.los`，本版未实现（明确报"格式未实现"）；手上只有加拿大 NTv2 数据，不在本库 NAD27 的 CONUS 范围内 |
+| CH1903→ETRS89（3 参数） | 未做点位验证 | swisstopo REFRAME 服务与本机网络不通 |
+| BD72→ETRS89（7 参数） | 未做点位验证 | IGN Belgium 测试点未取到 |
+
+### 11.6 行为变更
+
+| 项 | 之前 | 现在 |
+| --- | --- | --- |
+| DHDN→ETRS89 的候选运算 | 1 条（7 参数） | 2 条（网格 0.1 m + 7 参数 3 m），按精度排序后网格优先 |
+| `transform` 参数 | `--grid` | 增加 `--explain`（可与 `--grid` 同用） |
+| 默认输出 | 坐标两列 | 不变（`--explain` 才打印报告，不污染管道） |
+| wasm-gc 体积 | 156 029 字节 | 157 678 字节（+1.6 KB：`--explain` 与一条注册记录） |
+| CI 行数统计 | `find` 含 `.mooncakes/`（虚报约 2.2 万行） | 排除依赖源码，只数本库 |
+
+### 11.7 复现
+
+```bash
+curl -L -o docs/BETA2007.gsb \
+  https://raw.githubusercontent.com/OSGeo/PROJ/master/data/tests/BETA2007.gsb
+moon build --target js
+python verification/run_verification.py     # 31 点 × 2 路径 + ED50 单点
+
+moon test                                    # 103 个测试，含 31 点回归
+moon run cmd/main --target js -- transform --explain EPSG:4277 EPSG:4258 1.7179 52.6576
 ```
