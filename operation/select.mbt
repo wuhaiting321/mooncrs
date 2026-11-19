@@ -143,7 +143,11 @@ fn assumed(from : @types.Datum, to : @types.Datum) -> CoordinateOperation {
 
 ///|
 /// 三层排序。
-fn sort_operations(ops : Array[CoordinateOperation]) -> Unit {
+///
+/// 对外公开，是因为"列出候选"这件事不止发生在 `resolve` 里：`crs` 包要把
+/// 注册表运算和定义文本自带的 `towgs84` 混在一起排，必须用同一套规则，
+/// 否则 `ops` 列出的顺序和 `transform` 实际挑的顺序会不一致。
+pub fn sort_operations(ops : Array[CoordinateOperation]) -> Unit {
   let n = ops.length()
   let mut i = 1
   while i < n {

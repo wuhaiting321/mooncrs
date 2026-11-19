@@ -34,10 +34,21 @@ pub fn BoundingBox::new(
     )
   }
   if south >= north {
-    raise @types.CrsError::Invalid("适用范围南界不小于北界")
+    raise @types.CrsError::Invalid(
+      "适用范围的南界必须小于北界：收到 south = " +
+      south.to_string() +
+      "，north = " +
+      north.to_string(),
+    )
   }
   if west >= east {
-    raise @types.CrsError::Invalid("适用范围西界不小于东界")
+    raise @types.CrsError::Invalid(
+      "适用范围的西界必须小于东界：收到 west = " +
+      west.to_string() +
+      "，east = " +
+      east.to_string() +
+      "（跨 180° 经线的范围请拆成两条运算）",
+    )
   }
   { south, west, north, east }
 }
@@ -117,9 +128,13 @@ pub fn OperationMethod::needs_grid(self : OperationMethod) -> Bool {
 
 ///|
 /// 方法对应的 EPSG 方法码（无对应码时为空串）。
+///
+/// `Identity` 与 `Assumed` 没有 EPSG 方法码：EPSG 的方法码表里根本没有
+/// "什么都不做"和"假定重合"这两种运算，硬塞一个 9603（三参数地心平移）
+/// 会让报告里出现一个错误的方法标识。
 pub fn OperationMethod::epsg_code(self : OperationMethod) -> String {
   match self {
-    Identity => "9603"
+    Identity => ""
     Assumed => ""
     GeocentricTranslation3 => "9603"
     PositionVector7 => "9606"
@@ -128,6 +143,17 @@ pub fn OperationMethod::epsg_code(self : OperationMethod) -> String {
     Ntv2Grid => "9615"
     NadconGrid => "9613"
     Ballpark => ""
+  }
+}
+
+///|
+/// 方法码的展示文本。没有对应码时说明为什么没有，而不是留空。
+pub fn OperationMethod::epsg_text(self : OperationMethod) -> String {
+  let code = self.epsg_code()
+  if code == "" {
+    "无对应方法码"
+  } else {
+    code
   }
 }
 
@@ -203,7 +229,9 @@ pub fn CoordinateOperation::new(
   reversed~ : Bool = false,
 ) -> CoordinateOperation raise @types.CrsError {
   if code.length() == 0 {
-    raise @types.CrsError::Invalid("运算缺少标识")
+    raise @types.CrsError::Invalid(
+      "运算缺少标识：注册表里每条运算都要有 code，例如 EPSG:7709 或 LOCAL:OSGB36_ETRS89_7P",
+    )
   }
   match accuracy_m {
     Some(a) =>
@@ -354,35 +382,49 @@ pub fn TransformationReport::is_clean(self : TransformationReport) -> Bool {
 
 ///|
 /// 多行报告文本。
+///
+/// 五项固定字段（运算标识与名称 / 方法 / 精度 / 范围 / 警告）**无论有没有
+/// 内容都会打印**。空着不打印等于把"没有保留意见"和"实现忘了写"混成一种
+/// 表现，读报告的人无法区分；写"无"才是明确的肯定回答。
 pub fn TransformationReport::to_text(self : TransformationReport) -> String {
-  let sb = StringBuilder()
-  sb.write_string("运算    " + self.operation.code + "  " + self.operation.name + "\n")
-  sb.write_string("方法    " + self.operation.method_kind.label() + "\n")
-  sb.write_string("精度    " + self.operation.accuracy_text() + "\n")
-  sb.write_string("范围    " + self.operation.area.to_text() + "\n")
-  sb.write_string("出处    " + self.operation.authority + "\n")
+  let lines : Array[String] = []
+  lines.push("运算    " + self.operation.code + "  " + self.operation.name)
+  lines.push(
+    "方法    " +
+    self.operation.method_kind.label() +
+    "（EPSG " +
+    self.operation.method_kind.epsg_text() +
+    "）",
+  )
+  lines.push("精度    " + self.operation.accuracy_text())
+  lines.push("范围    " + self.operation.area.to_text())
+  lines.push("出处    " + self.operation.authority)
   if self.operation.note.length() > 0 {
-    sb.write_string("说明    " + self.operation.note + "\n")
+    lines.push("说明    " + self.operation.note)
   }
   if self.steps.length() > 0 {
-    sb.write_string("步骤\n")
+    lines.push("步骤")
     for step in self.steps {
-      sb.write_string("        · " + step + "\n")
+      lines.push("        · " + step)
     }
   }
   if self.skipped.length() > 0 {
-    sb.write_string("已跳过\n")
+    lines.push("已跳过")
     for s in self.skipped {
-      sb.write_string("        · " + s + "\n")
+      lines.push("        · " + s)
     }
   }
   if self.warnings.length() > 0 {
-    sb.write_string("警告\n")
+    lines.push("警告")
     for w in self.warnings {
-      sb.write_string("        ! " + w + "\n")
+      lines.push("        ! " + w)
     }
+  } else {
+    // 明确写"无"。省略这一行会让"没有警告"与"报告生成逻辑没跑到"看起来一样，
+    // 而读者无法区分这两件事。
+    lines.push("警告    无")
   }
-  sb.to_string()
+  join_strings(lines, "\n")
 }
 
 ///|
