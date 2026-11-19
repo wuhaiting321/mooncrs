@@ -276,7 +276,7 @@ fn parse_form(tokens : Array[Token], pos : Int) -> (WktNode, Int) raise @types.C
 pub fn parse_tree(text : String) -> WktNode raise @types.CrsError {
   let tokens = tokenize(text)
   if tokens.length() == 0 {
-    raise @types.CrsError::Parse("WKT 为空")
+    raise @types.CrsError::Parse("WKT 为空：请给出完整的 WKT1 或 WKT2 文本")
   }
   let (node, _) = parse_form(tokens, 0)
   node

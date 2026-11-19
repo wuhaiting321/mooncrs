@@ -19,7 +19,9 @@ pub fn laea_forward(
   let cos_lat = @math.cos(lat)
   let denom = 1.0 + sin0 * sin_lat + cos0 * cos_lat * @math.cos(dlon)
   if denom <= 1.0e-12 {
-    raise @types.CrsError::Domain("LAEA：对跖点无法投影")
+    raise @types.CrsError::Domain(
+      "LAEA 无法投影投影中心的对跖点：该点与中心相差约 180°，投影公式在此处发散。请换一个投影中心，或改用适用全球的投影",
+    )
   }
   let k = (2.0 / denom).sqrt()
   let x = p.fe + p.a * k * cos_lat * @math.sin(dlon)

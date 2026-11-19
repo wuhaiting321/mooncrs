@@ -132,7 +132,9 @@ pub fn Projection::mercator_1sp(
   fnorth~ : Double = 0.0,
 ) -> Projection raise @types.CrsError {
   if k0 <= 0.0 {
-    raise @types.CrsError::Invalid("尺度因子必须为正")
+    raise @types.CrsError::Invalid(
+      "尺度因子 k0 必须为正数，收到 " + k0.to_string() + "；比例尺因子取 1.0 表示无缩放",
+    )
   }
   let mut p = blank(Mercator1SP, ellipsoid)
   p = { ..p, lon0, lat0, k0, fe, fnorth }
@@ -183,7 +185,9 @@ pub fn Projection::transverse_mercator(
   fnorth~ : Double = 0.0,
 ) -> Projection raise @types.CrsError {
   if k0 <= 0.0 {
-    raise @types.CrsError::Invalid("尺度因子必须为正")
+    raise @types.CrsError::Invalid(
+      "尺度因子 k0 必须为正数，收到 " + k0.to_string() + "；比例尺因子取 1.0 表示无缩放",
+    )
   }
   let mut p = blank(TransverseMercator, ellipsoid)
   let series = KrugerSeries::new(ellipsoid)
@@ -261,7 +265,13 @@ pub fn Projection::lcc_2sp(
   let e2 = ellipsoid.e2()
   let e = ellipsoid.e()
   if (lat1 - lat2).abs() < 1.0e-12 {
-    raise @types.CrsError::Invalid("两条标准纬线不能相同")
+    raise @types.CrsError::Invalid(
+      "两条标准纬线不能相同：收到 lat1 = " +
+      rad2deg(lat1).to_string() +
+      "°，lat2 = " +
+      rad2deg(lat2).to_string() +
+      "°；圆锥投影需要两条不同的标准纬线来定形",
+    )
   }
   let m1 = m_func(lat1, e2)
   let m2 = m_func(lat2, e2)
@@ -302,7 +312,13 @@ pub fn Projection::albers(
   let e2 = ellipsoid.e2()
   let e = ellipsoid.e()
   if (lat1 - lat2).abs() < 1.0e-12 {
-    raise @types.CrsError::Invalid("两条标准纬线不能相同")
+    raise @types.CrsError::Invalid(
+      "两条标准纬线不能相同：收到 lat1 = " +
+      rad2deg(lat1).to_string() +
+      "°，lat2 = " +
+      rad2deg(lat2).to_string() +
+      "°；圆锥投影需要两条不同的标准纬线来定形",
+    )
   }
   let m1 = m_func(lat1, e2)
   let m2 = m_func(lat2, e2)
@@ -358,7 +374,9 @@ pub fn Projection::hotine_oblique(
   fnorth~ : Double = 0.0,
 ) -> Projection raise @types.CrsError {
   if k0 <= 0.0 {
-    raise @types.CrsError::Invalid("尺度因子必须为正")
+    raise @types.CrsError::Invalid(
+      "尺度因子 k0 必须为正数，收到 " + k0.to_string() + "；比例尺因子取 1.0 表示无缩放",
+    )
   }
   let cache = HotineCache::compute(ellipsoid, latc, lonc, azimuth, k0)
   let mut p = blank(HotineObliqueMercator, ellipsoid)
@@ -380,7 +398,9 @@ pub fn Projection::polar_stereographic_a(
     raise @types.CrsError::Invalid("variant A 的原点纬度必须为 ±90°")
   }
   if k0 <= 0.0 {
-    raise @types.CrsError::Invalid("尺度因子必须为正")
+    raise @types.CrsError::Invalid(
+      "尺度因子 k0 必须为正数，收到 " + k0.to_string() + "；比例尺因子取 1.0 表示无缩放",
+    )
   }
   let mut p = blank(PolarStereographicA, ellipsoid)
   p = { ..p, lon0, lat0, k0, fe, fnorth }

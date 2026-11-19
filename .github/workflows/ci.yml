@@ -25,13 +25,14 @@ jobs:
       - name: Toolchain version
         run: moon version
 
-      # cmd/main 依赖 moonbitlang/x/fs（读取 .gsb）。runner 上的 registry
+      # cmd/cli 依赖 moonbitlang/x/fs（读取 .gsb）。runner 上的 registry
       # 索引是空壳，不先更新会报 "module was not found in the registry"。
       - name: Update registry index
         run: moon update
 
+      # 告警当错误处理：`--deny-warn` 让"能编译但有隐患"的提交过不去。
       - name: Check
-        run: moon check
+        run: moon check --deny-warn
 
       - name: Test
         run: moon test
@@ -41,17 +42,68 @@ jobs:
           moon build --target wasm-gc --release
           ls -l _build/wasm-gc/release/build/cmd/main/main.wasm
 
+      # 体积上限 170 KB（174080 字节）。超过就说明又塞进了不该进二进制的
+      # 字符串或数据表，先停下来说明原因，而不是悄悄把上限调高。
+      - name: wasm-gc size budget
+        run: |
+          SIZE=$(stat -c%s _build/wasm-gc/release/build/cmd/main/main.wasm)
+          echo "wasm-gc: $SIZE bytes"
+          if [ "$SIZE" -gt 174080 ]; then
+            echo "::error::wasm-gc 产物 $SIZE 字节，超过 170 KB 上限"
+            exit 1
+          fi
+          echo "占用上限的 $((SIZE * 100 / 174080))%"
+
       - name: Build native
         run: |
           moon build --target native
           BIN=$(find _build/native -type f \( -name "main" -o -name "main.exe" \) | head -1)
           echo "native binary: $BIN"
+          echo "MOONCRS_BIN=$BIN" >> "$GITHUB_ENV"
           "$BIN" transform EPSG:4326 EPSG:32650 116.3912 39.9075
 
+      # wasm 路径也要跑一次：native 能通不代表 wasm 能通（浮点、字符串处理
+      # 在两边实现不同）。
       - name: Smoke test CLI
         run: |
           moon run cmd/main -- transform EPSG:4326 EPSG:32650 116.3912 39.9075
           moon run cmd/main -- describe 27700 | head -5
+          moon run cmd/main -- ops --from EPSG:4277 --to EPSG:4258 --point 1.7179 52.6576
+
+      # 退出码是脚本接口的一部分：0 成功 / 1 参数错 / 2 可恢复错误。
+      # 三个值必须能区分，否则调用方只能"失败就当全错"。
+      # 用 native 二进制断言，是因为这里要的正是**进程**退出码。
+      - name: Exit codes
+        run: |
+          expect() {
+            want="$1"; shift
+            set +e
+            "$MOONCRS_BIN" "$@" > /dev/null 2>&1
+            got=$?
+            set -e
+            echo "expect=$want got=$got  ::  $*"
+            if [ "$want" != "$got" ]; then
+              echo "::error::退出码不符：期望 $want，实际 $got（命令：$*）"
+              exit 1
+            fi
+          }
+          expect 0 version
+          expect 0 transform EPSG:4326 EPSG:32650 116.3912 39.9075
+          expect 1 transform EPSG:4326
+          expect 1 nosuchcommand
+          expect 2 transform EPSG:9999 EPSG:4326 0 0
+
+      # 解释输出必须含五项固定字段；缺一项就说明报告模板被改坏了。
+      - name: Explain contract
+        run: |
+          OUT=$("$MOONCRS_BIN" transform --explain EPSG:4277 EPSG:4258 1.7179 52.6576)
+          echo "$OUT"
+          for key in 运算 方法 精度 范围 警告; do
+            echo "$OUT" | grep -q "^$key" || {
+              echo "::error::--explain 缺少「$key」一项"
+              exit 1
+            }
+          done
 
       - name: Code size
         run: |

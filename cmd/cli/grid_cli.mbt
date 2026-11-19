@@ -78,8 +78,9 @@ fn stem_of(path : String) -> String {
 }
 
 ///|
-/// 读取并登记一个网格。失败时打印原因并返回 `false`，由调用方决定是否继续。
-fn load_grid(spec : String, grids : @grid.GridSet) -> Bool {
+/// 读取并登记一个网格。失败时把原因写进 sink 并返回 `false`，
+/// 由调用方决定是否继续。
+fn load_grid(sink : Sink, spec : String, grids : @grid.GridSet) -> Bool {
   let pair = split_grid_spec(spec)
   let id = if pair.0 == "" {
     stem_of(pair.1)
@@ -88,24 +89,26 @@ fn load_grid(spec : String, grids : @grid.GridSet) -> Bool {
   }
   let path = pair.1
   if path == "" {
-    println("错误: --grid 后面缺少文件路径")
+    sink.line("错误: --grid 后面缺少文件路径")
+    sink.line("写法: --grid <ID>=<路径.gsb>，例如 --grid conus=conus.gsb")
     return false
   }
   let bytes = @fs.read_file_to_bytes(path) catch {
     @fs.IOError(m) => {
-      println("错误: 读取网格文件失败 '" + path + "'：" + m)
+      sink.line("错误: 读取网格文件失败 '" + path + "'：" + m)
+      sink.line("检查路径是否正确；需要哪些网格、从哪下载，见 docs/DATA.md")
       return false
     }
   }
   let grid = @grid.Ntv2Grid::parse(bytes, name=stem_of(path)) catch {
     err => {
-      println("错误: " + err.message() + "（文件 " + path + "）")
+      sink.line("错误: " + err.message() + "（文件 " + path + "）")
       return false
     }
   }
   grids.add(id, grid)
   // 走 stderr：stdout 是给管道用的，混进一行提示会让 `| awk` 之类的用法出错。
-  eprintln(
+  sink.note(
     "已加载网格 " +
     id +
     "：" +
@@ -119,27 +122,31 @@ fn load_grid(spec : String, grids : @grid.GridSet) -> Bool {
 }
 
 ///|
-/// 从参数里摘出 `--grid/-g`，返回 (网格集, 其余位置参数)。
+/// 从参数里摘出 `--grid/-g`，返回其余位置参数。
 ///
 /// 返回 `None` 表示网格加载失败——此时不应继续转换，否则用户会拿到
 /// "坐标运算不可用"的报错，而真实原因其实是文件没读进来。
-fn collect_grids(args : Array[String]) -> (@grid.GridSet, Array[String])? {
-  let grids = @grid.GridSet::empty()
+fn collect_grids(
+  sink : Sink,
+  args : Array[String],
+  grids : @grid.GridSet,
+) -> Array[String]? {
   let rest : Array[String] = []
   let mut i = 0
   while i < args.length() {
     let a = args[i]
     if a == "--grid" || a == "-g" {
       if i + 1 >= args.length() {
-        println("错误: --grid 后面缺少文件路径")
+        sink.line("错误: --grid 后面缺少文件路径")
+        sink.line("写法: --grid <ID>=<路径.gsb>，例如 --grid conus=conus.gsb")
         return None
       }
-      if !load_grid(args[i + 1], grids) {
+      if !load_grid(sink, args[i + 1], grids) {
         return None
       }
       i = i + 2
     } else if a.has_prefix("--grid=") {
-      if !load_grid(slice(a, 7, a.length()), grids) {
+      if !load_grid(sink, slice(a, 7, a.length()), grids) {
         return None
       }
       i = i + 1
@@ -148,7 +155,7 @@ fn collect_grids(args : Array[String]) -> (@grid.GridSet, Array[String])? {
       i = i + 1
     }
   }
-  Some((grids, rest))
+  Some(rest)
 }
 
 ///|
@@ -156,28 +163,30 @@ fn collect_grids(args : Array[String]) -> (@grid.GridSet, Array[String])? {
 ///
 /// 存在的理由很实际：拿到一个 .gsb 之后，第一件要确认的事是"它盖不盖
 /// 我要用的地方"。等到转换时报"点不在范围内"才知道，代价太高。
-fn run_grid(args : Array[String]) -> Unit {
+fn cmd_grid(sink : Sink, args : Array[String]) -> Int32 {
   if args.length() < 1 {
-    println("用法: mooncrs grid <文件.gsb> [<lon> <lat> ...]")
-    println("不给坐标时只打印网格摘要；给了坐标则输出该点的改正量（角秒）")
-    return
+    sink.line("用法: mooncrs grid <文件.gsb> [<lon> <lat> ...]")
+    sink.line("不给坐标时只打印网格摘要；给了坐标则输出该点的改正量（角秒）")
+    sink.line("示例: mooncrs grid OSTN15_NTv2_OSGBtoETRS.gsb -1.7160 52.6579")
+    return EXIT_USAGE
   }
   let path = args[0]
   let bytes = @fs.read_file_to_bytes(path) catch {
     @fs.IOError(m) => {
-      println("错误: 读取网格文件失败 '" + path + "'：" + m)
-      return
+      sink.line("错误: 读取网格文件失败 '" + path + "'：" + m)
+      sink.line("检查路径是否正确；需要哪些网格、从哪下载，见 docs/DATA.md")
+      return EXIT_FAILED
     }
   }
   let grid = @grid.Ntv2Grid::parse(bytes, name=stem_of(path)) catch {
     err => {
-      println("错误: " + err.message())
-      return
+      sink.line("错误: " + err.message())
+      return EXIT_FAILED
     }
   }
-  println("文件    " + path)
-  println("版本    " + grid.version + "（经度约定 " + grid.lon_convention + "）")
-  println(
+  sink.line("文件    " + path)
+  sink.line("版本    " + grid.version + "（经度约定 " + grid.lon_convention + "）")
+  sink.line(
     "椭球    源 a=" +
     show(grid.from_ellipsoid.0) +
     " b=" +
@@ -187,9 +196,9 @@ fn run_grid(args : Array[String]) -> Unit {
     " b=" +
     show(grid.to_ellipsoid.1),
   )
-  println("子网格  " + grid.len().to_string() + " 个")
+  sink.line("子网格  " + grid.len().to_string() + " 个")
   for s in grid.subs {
-    println(
+    sink.line(
       "  " +
       s.name +
       "  " +
@@ -204,7 +213,8 @@ fn run_grid(args : Array[String]) -> Unit {
       s.to_text(),
     )
   }
-  println("覆盖    " + grid.coverage_text())
+  sink.line("覆盖    " + grid.coverage_text())
+  let mut failed = false
   if args.length() >= 3 {
     let mut i = 1
     while i + 1 < args.length() {
@@ -212,7 +222,7 @@ fn run_grid(args : Array[String]) -> Unit {
         (Some(lon), Some(lat)) =>
           match grid.forward(lon, lat) {
             Some(shift) =>
-              println(
+              sink.line(
                 show(lon) +
                 " " +
                 show(lat) +
@@ -223,16 +233,27 @@ fn run_grid(args : Array[String]) -> Unit {
                 "″  子网格 " +
                 shift.subgrid,
               )
-            None =>
-              println(
+            None => {
+              sink.line(
                 "错误: " +
                 grid.outside_message(lon, lat) +
-                "（该点不在任何子网格内）",
+                "（该点不在任何子网格内；网格不会外推，超出范围没有改正量）",
               )
+              failed = true
+            }
           }
-        _ => println("错误: 无法解析坐标 '" + args[i] + "' 或 '" + args[i + 1] + "'")
+        _ => {
+          sink.line("错误: 无法解析坐标 '" + args[i] + "' 或 '" + args[i + 1] + "'")
+          sink.line("这两个参数应当是十进制数值，例如 `-1.7160 52.6579`")
+          failed = true
+        }
       }
       i = i + 2
     }
+  }
+  if failed {
+    EXIT_FAILED
+  } else {
+    EXIT_OK
   }
 }

@@ -14,7 +14,23 @@
 pub fn to_crs(params : ProjParams) -> @types.Crs raise @types.CrsError {
   let proj = match params.get("proj") {
     Some(p) => p.to_lower()
-    None => raise @types.CrsError::Parse("PROJ 串缺少 +proj 参数")
+    None =>
+      raise @types.CrsError::Parse(
+        "PROJ 串缺少 +proj 参数：请写成 +proj=longlat 或 +proj=utm 这样的形式",
+      )
+  }
+  // `+zone` 只在 `+proj=utm` 下有意义，且只有 1..60 这 60 个带。
+  // 校验放在这里而不是投影层：`parameters_of` 会把带号展开成中央经线，
+  // 展开之后就再也看不出"带号"这个概念了，报错会指不到病灶。
+  if proj == "utm" {
+    let zone = params.get_double("zone").unwrap_or(0.0)
+    if zone < 1.0 || zone > 60.0 {
+      raise @types.CrsError::Invalid(
+        "UTM 带号 +zone 必须在 1..60，收到 " +
+        zone.to_string() +
+        "；东经 180° 到西经 180° 共 60 带，首带 1、末带 60，请改 +zone 或改用 +proj=tmerc 自定中央经线",
+      )
+    }
   }
   let datum = datum_of(params)
   let towgs = towgs84_of(params)

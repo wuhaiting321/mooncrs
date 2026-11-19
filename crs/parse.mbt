@@ -10,7 +10,9 @@
 pub fn parse(text : String) -> @types.Crs raise @types.CrsError {
   let trimmed = text.trim().to_owned()
   if trimmed.length() == 0 {
-    raise @types.CrsError::Parse("CRS 定义为空")
+    raise @types.CrsError::Parse(
+      "CRS 定义为空：请给出 EPSG 码（如 EPSG:4326）、PROJ 串（+proj=…）或 WKT 文本",
+    )
   }
   match epsg_code_of(trimmed) {
     Some(code) => @epsg.get(code)

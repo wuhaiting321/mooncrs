@@ -554,7 +554,7 @@ pub fn parse(text : String) -> @types.Crs raise @types.CrsError {
       }
       let kids = form_children(source)
       if kids.length() == 0 {
-        raise @types.CrsError::Parse("SOURCECRS 为空")
+        raise @types.CrsError::Parse("SOURCECRS 为空：BOUNDCRS 的源坐标系节点里必须有一个 CRS")
       }
       let inner = kids[0]
       match form_key(inner) {
@@ -562,7 +562,9 @@ pub fn parse(text : String) -> @types.Crs raise @types.CrsError {
           @types.Crs::Geographic(parse_geographic(inner))
         "PROJCRS" | "PROJCS" =>
           @types.Crs::Projected(parse_projected(inner))
-        other => raise @types.CrsError::UnsupportedOperation("BOUNDCRS 内的 " + other)
+        other => raise @types.CrsError::UnsupportedOperation(
+          "BOUNDCRS 内的源坐标系节点是 " + other + "，只支持 GEOGCRS / GEOGCS / PROJCRS / PROJCS",
+        )
       }
     }
     other => raise @types.CrsError::UnsupportedOperation("不支持的 WKT 根节点: " + other)
