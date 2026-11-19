@@ -238,29 +238,24 @@ fn build_plan(
   let skipped : Array[String] = []
   let candidates : Array[@operation.CoordinateOperation] = []
 
-  // 定义文本自带的 towgs84 优先，但它只对"转入 WGS84 族"有意义。
+  // 候选清单只有一份，和 `ops` 子命令共用（见 candidates.mbt）。
+  // 这里只做两件清单里没有的事：把"定义文本自带"的那条提前，
+  // 以及把不能执行的候选转成给人看的 skipped 说明。
+  let listed = prefer_inline(list_candidates(from, to, grids=grids))
+  for c in listed {
+    if c.ready {
+      candidates.push(c.operation)
+    } else {
+      skipped.push(
+        c.operation.code + "（" + c.operation.accuracy_text() + "）" + c.blocked,
+      )
+    }
+  }
+
+  // 用了定义文本自带的参数，就得说清它没有范围与精度；没用上也要说清为什么。
   match from.inline_towgs84() {
     Some(h) => {
       if wgs84_family(dst.key) {
-        let op_method = if h.is_translation_only() {
-          @operation.GeocentricTranslation3
-        } else {
-          @operation.PositionVector7
-        }
-        candidates.push(
-          @operation.CoordinateOperation::new(
-            code="LOCAL:INLINE_TOWGS84",
-            name="定义文本自带的 towgs84",
-            method_kind=op_method,
-            params=@operation.OperationParams::Helmert(h),
-            source=src.key,
-            target=dst.key,
-            area=@operation.BoundingBox::world(),
-            accuracy_m=None,
-            authority="definition text",
-            note="参数来自 WKT 的 TOWGS84 或 PROJ 的 +towgs84，无适用范围、无精度声明",
-          ),
-        )
         warnings.push(
           "本次使用定义文本自带的参数（" +
           h.dx.to_string() +
@@ -279,38 +274,6 @@ fn build_plan(
       }
     }
     None => ()
-  }
-
-  let registered = @operation.resolve(src, dst)
-  for op in registered {
-    if op.needs_grid() {
-      // 网格类运算分三种情况：数据已加载可执行、数据缺失、格式本版不支持。
-      // 三种都要能被用户看懂，尤其是第三种——把"没实现"说成"缺数据"是骗人。
-      match op.method_kind {
-        NadconGrid =>
-          skipped.push(
-            op.code +
-            "（" +
-            op.accuracy_text() +
-            "）使用 NADCON 的 .las/.los 格式，本版只实现 NTv2（.gsb）解析，已跳过",
-          )
-        _ =>
-          match grids.get(grid_id_of(op)) {
-            Some(_) => candidates.push(op)
-            None =>
-              skipped.push(
-                op.code +
-                "（" +
-                op.accuracy_text() +
-                "）更精确，但需要网格文件 " +
-                grid_id_of(op) +
-                ".gsb；当前未加载，用 --grid 指定文件，索取方式见 docs/DATA.md",
-              )
-          }
-      }
-    } else {
-      candidates.push(op)
-    }
   }
 
   if candidates.length() == 0 {
@@ -425,7 +388,13 @@ pub fn to_geodetic(
         LatLon => (y, x)
         _ => (x, y)
       }
-      (g.unit.to_radians(pair.0), g.unit.to_radians(pair.1), z)
+      let lon = g.unit.to_radians(pair.0)
+      let lat = g.unit.to_radians(pair.1)
+      // 入参先在门口校验一次。以前这里不查，纬度 95 会一路走到"点不在运算
+      // 范围内"——那个报错说的是基准运算不够用，而真实原因是输入根本不合法，
+      // 用户会去补网格文件，补完还是错。
+      check_latitude(lat, 1.0 / deg_to_rad)
+      (lon, lat, z)
     }
     Projected(p) => {
       let pair = match p.axis {
@@ -444,6 +413,21 @@ pub fn to_geodetic(
       let zm = c.unit.to_metres(z)
       geocentric_to_geodetic(c.datum.ellipsoid.semi_major, c.datum.ellipsoid.e2(), xm, ym, zm)
     }
+  }
+}
+
+///|
+/// 纬度合法性检查。
+///
+/// 容差取 1e-9 弧度（约 6 µm），够容纳浮点往返误差，又不会放过真的越界值。
+fn check_latitude(lat_rad : Double, rad_to_deg : Double) -> Unit raise @types.CrsError {
+  let limit = 90.0 * deg_to_rad
+  if lat_rad.abs() > limit + 1.0e-9 {
+    raise @types.CrsError::Domain(
+      "纬度 " +
+      (lat_rad * rad_to_deg).to_string() +
+      "° 超出 [-90, 90] 度。请检查是否把经度与纬度写反了（本库按各 CRS 的轴序解释，EPSG:4326 是「经度 纬度」）；也确认单位是十进制度而不是度分秒",
+    )
   }
 }
 
