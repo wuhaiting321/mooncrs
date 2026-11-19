@@ -225,7 +225,7 @@ OSGB36 (52°39′27.2531″N, 1°43′4.5177″E, h=0)
 
 ---
 
-## 5. 测试清单（103 个）
+## 5. 测试清单（120 个）
 
 | 文件 | 数量 | 覆盖内容 |
 | --- | ---: | --- |
@@ -240,12 +240,16 @@ OSGB36 (52°39′27.2531″N, 1°43′4.5177″E, h=0)
 | `grid/ntv2_test.mbt` | 11 | 头字段解析、节点/格内插值精度、范围外拒答、正东经识别、反解闭环、重叠子网格、坏文件五例、空输入、网格集合 |
 | `crs/transform_grid_test.mbt` | 5 | 缺文件提示、提供网格后改走网格、超出覆盖报错、NADCON 格式未实现、结果可复现 |
 | `crs/transform_d_test.mbt` | 3 | BKG 官方 31 点残差回归、DHDN 链路双运算登记、EPSG:15948 的网格绑定 |
+| `types/error_test.mbt` | 5 | 六类错误补建议、裸 unsupported 被拦截、已可操作时不重复追加、句号不重复、前缀保留 |
+| `crs/error_test.mbt` | 3 | 真实分支文案：空定义/未知码/未知投影/带号越界、无运算/超范围/缺基准、纬度超界 |
+| `grid/error_test.mbt` | 1 | 空文件、垃圾字节、截断文件的报错都指向 docs/DATA.md |
+| `cmd/cli/cli_wbtest.mbt` | 8 | `--explain` 五项齐全、无警告写「无」、`ops` 排序与标注、超范围标注、确定性（两次逐字节相同）、退出码三档、用法提示 |
 
 运行：
 
 ```bash
 moon test
-# Total tests: 103, passed: 103, failed: 0.
+# Total tests: 120, passed: 120, failed: 0.
 ```
 
 ---
@@ -254,7 +258,7 @@ moon test
 
 本版本**不支持**以下能力，且会在解析阶段明确报错而不是静默降级：
 
-1. **网格平移**（NTv2 `.gsb` / NADCON）——需要外部二进制网格文件；
+1. **NADCON 网格平移**（`.las` / `.los`）——格式未实现；NTv2（`.gsb`）已支持，但网格文件不随库分发，需自备（见 `docs/DATA.md`）；
 2. **大地水准面高程**（`.gtx`）——同上；
 3. **垂直坐标系**（`VERTCRS`）与**复合坐标系**（`COMPOUNDCRS`）；
 4. **EPSG 全量注册表**——只收录 250 个高频码，未收录时提示改用 WKT/PROJ 串；
@@ -268,13 +272,15 @@ moon test
   具名坐标系（BD72、CS92、LV95 等）依据公开资料填写，若与官方数据集
   有出入，以官方为准——本项目的测试只能保证"内部一致 + 官方算例命中"，
   不能保证"250 个码逐个与 EPSG 官方数据集逐字段相同"。
-- **CLI 退出码**：MoonBit 当前没有 `process::exit`，CLI 在出错时打印
-  `错误: ...` 但退出码仍为 0。库 API 的错误处理是完整的（显式 `raise`）。
+- **CLI 退出码**：C 段起已实现（0 成功 / 1 参数错 / 2 可恢复错误）。标准库没有公开的
+  `exit`，本库按目标平台各声明一次外部符号（`wasi_snapshot_preview1.proc_exit` /
+  `__moonbit_sys_unstable.exit` / libc `exit` / `process.exit`），wasm、native、js 三个
+  运行时上都实测生效（CI 里有断言）。
 - **工具链弃用提示**：MoonBit 0.1.20261104 对 `derive(...)` 语法给出 20 条
   `deprecated_syntax` 提示，建议改用 `#derive(...)`；但该版本实测对 `#derive`
   报 `unknown attribute derive`（`error[4018]` + `warning[0042]`），
   替代语法尚未实现。因此 `derive(...)` 是当前唯一可编译的写法，这 20 条提示
-  无法通过修改代码消除，属工具链过渡状态——错误数恒为 0，构建与 62 个测试
+  无法通过修改代码消除，属工具链过渡状态——错误数恒为 0，构建与 120 个测试
   均不受影响；在 0.1.20261020 上则完全无提示。
 
 ---
@@ -287,7 +293,7 @@ cd F:\moonbit总文件\mooncrs
 # 1) 编译检查：期望 0 error（新工具链会提示 derive 语法弃用，属工具链演进）
 moon check
 
-# 2) 全量测试：期望 62/62
+# 2) 全量测试：期望 120/120
 moon test
 
 # 3) 分层测试
@@ -317,7 +323,7 @@ find . -name "*.mbt" -not -path "./_build/*" | xargs wc -l | tail -1
 | 用 MoonBit 实现 | 全部 7 148 行 MoonBit，无其它语言代码（Python 仅用于独立复算验证，不在仓库内） |
 | 解决真实问题 | 坐标转换是 GIS/遥感/测绘的基础设施能力 |
 | 有差异化 | MoonBit 生态截至 2026-11 尚无 CRS 引擎；Wasm 目标下无 FFI、无网格文件 |
-| 可验证 | 官方算例 + 闭环 + 独立复算三重判据，62 个自动化测试 |
+| 可验证 | 官方算例 + 闭环 + 独立复算三重判据，120 个自动化测试 |
 | 可演示 | CLI 七条子命令，一条命令完成一次真实转换 |
 | 可扩展 | 六步管道分层，新增投影/基准/格式都只替换其中一层 |
 
@@ -573,6 +579,90 @@ curl -L -o docs/BETA2007.gsb \
 moon build --target js
 python verification/run_verification.py     # 31 点 × 2 路径 + ED50 单点
 
-moon test                                    # 103 个测试，含 31 点回归
+moon test                                    # 120 个测试，含 31 点回归
 moon run cmd/main --target js -- transform --explain EPSG:4277 EPSG:4258 1.7179 52.6576
+```
+
+---
+
+## 12. 0.2 第四阶段：报告、CLI 与判据（C）
+
+> 对应修改方案 C 段，完成规定见 `mooncrs-完成规定.md` C1–C7。
+> 这一段不加新的数学，只做一件事：把"结果能不能用"从口头承诺变成接口和测试。
+
+### 12.1 交付了什么
+
+| 交付物 | 位置 | 解决什么 |
+| --- | --- | --- |
+| `ops` 子命令 | `cmd/cli/cmd_ops.mbt` | 转换前先看全部候选：精度排序、范围标注、缺数据原因 |
+| 候选清单唯一来源 | `crs/candidates.mbt` | `ops` 与 `transform` 共用一份列表，不会各说各话 |
+| CLI 输出可测 | `cmd/cli/cli.mbt` | 命令只往 `Sink` 写，输出是一次运行的**值**，可逐字节比对 |
+| 退出码三档 | 同上 + 各平台 `process_exit` | 0 成功 / 1 参数错 / 2 可恢复错误；脚本能分流 |
+| 错误文案兜底 | `types/error.mbt` | 正文没有可操作信息时自动补建议，覆盖 100+ 个 `raise` 点 |
+| 精度判据文档 | `docs/ACCURACY.md` | 方法族精度表、三条判据、不支持清单 |
+| README 收窄宣称 | `README.md` | 删除「任意」「精确转换」；新增能力边界表与不支持清单 |
+
+### 12.2 完成规定逐条
+
+| # | 规定 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| C1 | `--explain` 必含 operation code+name / method / accuracy / area / warnings | ✅ | 五项固定打印，无警告时写「警告 无」而不是省略；测试 `cli_wbtest.mbt` 逐项断言非空 |
+| C2 | `ops --from --to --point` 列出全部候选，按精度排序，标适用/超出范围 | ✅ | 网格 0.1 m 排在七参数 2 m 之前；缺数据标 `[缺数据]`，超范围标 `[超出范围]` 并给出范围 |
+| C3 | 所有错误消息可操作（> 20 字符、含缺什么或哪个范围），不出现裸 `unsupported` | ✅ | `CrsError::message()` 统一兜底 + 逐条改写短文案；`types`/`crs`/`grid` 三个测试文件遍历真实分支 |
+| C4 | 输出确定性：同输入两次逐字节相同 | ✅ | `dispatch` 返回 `out/err/code`，测试比对两次调用的三个字段 |
+| C5 | 退出码 0/1/2 | ✅ | 单元测试四组断言 + CI 用 native 二进制断言**进程**退出码 |
+| C6 | wasm-gc ≤ 170 KB | ✅ | 168 743 字节（上限 174 080，占 96.9%）；CI 里超限直接失败 |
+| C7 | README 删除「任意」「精确转换」「跨基准放样」，新增能力边界表与不支持清单 | ✅ | `grep -n "任意\|放样" README.md` 逐条核对：其余出现均在"不适用于 / 不承诺"语境 |
+| C8 | `describe` 增加「可用运算数」 | ⬜ 未做 | 软目标。`describe` 只接收单个 CRS，没有"另一个 CRS"就没有候选集，"可用运算数"没有确定含义；需要时用 `ops`，那里有确定的答案 |
+| C9 | `--json` | ⬜ 未做 | 软目标。当前体积已占 C6 上限的 96.9%，再引入 JSON 序列化会挤压体积预算；等体积有余量再做 |
+
+### 12.3 C 段暴露并修掉的两个缺陷
+
+这两条不是原计划的一部分，是写 C3 的"真实分支遍历测试"时被测试逼出来的：
+
+**① `+proj=utm +zone=99` 被静默接受。** PROJ 串的 `+zone` 在
+`projstr/build.mbt` 里被直接展开成中央经线（`zone × 6 − 183`），绕过了
+`Projection::utm` 里的 1..60 校验。`+zone=99` 会算出中央经线 411°，得到一个
+"看起来正常、实际无意义"的坐标。现在在展开之前校验，报错写明 1..60 与首末带。
+
+**② 纬度 95° 的报错指错了病灶。** 以前它会一路走到"点不在运算
+`LOCAL:IDENTITY` 的适用范围内"——用户看到这句话会去补网格文件或换运算，
+而真实原因是输入根本不合法。现在在 `to_geodetic` 入口校验纬度，报错直接问
+"是不是把经纬度写反了"。
+
+两条都补了测试（`crs/error_test.mbt`），也都在 `docs/ACCURACY.md` 的判据里
+留了痕迹：**报错要指向病灶，否则等于把用户往错的方向推。**
+
+### 12.4 行为变更
+
+| 项 | 之前 | 现在 |
+| --- | --- | --- |
+| CLI 退出码 | 恒为 0 | 0 / 1 / 2 |
+| CLI 子命令 | 8 条 | 9 条（新增 `ops`） |
+| `--explain` 的「方法」行 | `七参数（位置向量）` | `七参数（位置向量）（EPSG 9606）`；无方法码时写"无对应方法码" |
+| `--explain` 无警告时 | 不打印「警告」段 | 打印 `警告    无` |
+| `Identity` 的方法码 | 错标为 `9603`（三参数地心平移） | 空（EPSG 无对应方法，报告写"无对应方法码"） |
+| 包结构 | `cmd/main` 里既有入口又有实现 | 实现移到 `cmd/cli`（普通包，可写白盒测试），`cmd/main` 只剩 4 行入口 |
+| `+proj=utm +zone=N`（N∉[1,60]） | 静默算出无意义坐标 | `Invalid` 报错 |
+| 纬度 \|φ\|>90 的输入 | 报"点不在运算范围内" | `Domain` 报错并提示经纬写反 |
+
+### 12.5 复现
+
+```bash
+moon check --deny-warn          # 0 error 0 warning
+moon test                       # 120 / 120
+
+# 五项齐全的解释
+moon run cmd/main -- transform --explain EPSG:4277 EPSG:4258 1.7179 52.6576
+
+# 全部候选 + 适用性
+moon run cmd/main -- ops --from EPSG:4277 --to EPSG:4258 --point 1.7179 52.6576
+
+# 退出码三档
+moon run cmd/main -- transform EPSG:4326                       ; echo $?   # 1
+moon run cmd/main -- transform EPSG:9999 EPSG:4326 0 0          ; echo $?   # 2
+moon run cmd/main -- transform EPSG:4326 EPSG:3857 116.39 39.9  ; echo $?   # 0
+
+# 体积
+moon build --target wasm-gc --release && ls -l _build/wasm-gc/release/build/cmd/main/main.wasm
 ```
