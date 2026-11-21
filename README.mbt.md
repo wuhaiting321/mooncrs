@@ -1,9 +1,9 @@
-# hc155-89/mooncrs
+# wuhaiting321/mooncrs
 
 坐标参考系（CRS）转换引擎。核心包零外部依赖；网格数据按需自备，不随库分发。
 
 ```
-moon add hc155-89/mooncrs
+moon add wuhaiting321/mooncrs
 ```
 
 配套 CLI（`moon run cmd/main -- ...`）：

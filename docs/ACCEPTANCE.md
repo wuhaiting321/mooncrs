@@ -297,11 +297,11 @@ moon check
 moon test
 
 # 3) 分层测试
-moon test -p hc155-89/mooncrs/projection
-moon test -p hc155-89/mooncrs/wkt
-moon test -p hc155-89/mooncrs/projstr
-moon test -p hc155-89/mooncrs/epsg
-moon test -p hc155-89/mooncrs/crs
+moon test -p wuhaiting321/mooncrs/projection
+moon test -p wuhaiting321/mooncrs/wkt
+moon test -p wuhaiting321/mooncrs/projstr
+moon test -p wuhaiting321/mooncrs/epsg
+moon test -p wuhaiting321/mooncrs/crs
 
 # 4) CLI
 moon run cmd/main -- help

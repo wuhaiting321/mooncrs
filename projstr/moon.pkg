@@ -1,5 +1,5 @@
 import {
-  "hc155-89/mooncrs/types",
+  "wuhaiting321/mooncrs/types",
   "moonbitlang/core/math",
   "moonbitlang/core/debug",
 }

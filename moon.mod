@@ -1,13 +1,13 @@
 // Learn more about moon.mod configuration:
 // https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html
 
-name = "hc155-89/mooncrs"
+name = "wuhaiting321/mooncrs"
 
 version = "0.1.0"
 
 readme = "README.md"
 
-repository = ""
+repository = "https://github.com/wuhaiting321/mooncrs"
 
 license = "Apache-2.0"
 
@@ -27,8 +27,4 @@ import {
   "moonbitlang/x@0.4.48"
 }
 
-
-
-
-
-description = "Coordinate reference system transformation engine: WKT2/WKT1/PROJ/EPSG in, 12 projections, Helmert datum shifts, no external dependencies."
+description = "Coordinate reference system transformation engine: WKT2/WKT1/PROJ/EPSG in, 12 projections, datum operations carrying accuracy and area of use."

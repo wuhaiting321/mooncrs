@@ -1,5 +1,5 @@
 import {
-  "hc155-89/mooncrs/cmd/cli",
+  "wuhaiting321/mooncrs/cmd/cli",
   "moonbitlang/core/env",
 }
 

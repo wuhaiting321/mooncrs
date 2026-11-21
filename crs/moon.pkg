@@ -1,10 +1,10 @@
 import {
-  "hc155-89/mooncrs/types",
-  "hc155-89/mooncrs/projection",
-  "hc155-89/mooncrs/wkt",
-  "hc155-89/mooncrs/projstr",
-  "hc155-89/mooncrs/epsg",
-  "hc155-89/mooncrs/operation",
-  "hc155-89/mooncrs/grid",
+  "wuhaiting321/mooncrs/types",
+  "wuhaiting321/mooncrs/projection",
+  "wuhaiting321/mooncrs/wkt",
+  "wuhaiting321/mooncrs/projstr",
+  "wuhaiting321/mooncrs/epsg",
+  "wuhaiting321/mooncrs/operation",
+  "wuhaiting321/mooncrs/grid",
   "moonbitlang/core/math",
 }
