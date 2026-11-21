@@ -666,3 +666,53 @@ moon run cmd/main -- transform EPSG:4326 EPSG:3857 116.39 39.9  ; echo $?   # 0
 # 体积
 moon build --target wasm-gc --release && ls -l _build/wasm-gc/release/build/cmd/main/main.wasm
 ```
+
+---
+
+## 13. 验收阶段：按官方九条逐项核对（v0.1.0）
+
+> 初审通过后不再提交表格，验收看仓库与 mooncakes。本节把官方九条对到具体证据。
+> 发布版本：mooncakes `wuhaiting321/mooncrs@0.1.0`，GitHub tag `v0.1.0`。
+
+### 13.1 逐条对应
+
+| # | 要求 | 证据 |
+| --- | --- | --- |
+| 1 | MoonBit 为主要实现语言，moonc ≥ 0.10.16 | 源码 12 121 行全为 MoonBit；`moonc v0.10.16+b1a0e846e`，CI 的 Toolchain version 步骤记录每次实际版本 |
+| 2 | 仓库公开、提交记录清晰 | `visibility: PUBLIC`；提交按 feat / refactor / docs / ci 分组，每笔说明改动的理由而非仅列改动 |
+| 3 | 结构清晰、能完成声明功能 | 11 个包：types / projection / wkt / projstr / epsg / operation / grid / crs / cmd/cli / cmd/main / examples，依赖单向向下 |
+| 4 | README 含目标、安装、使用、示例、可复现 | 简介 → 安装 → 快速开始 → CLI 用法 → 示例 → 复现与测试，按上手顺序排列 |
+| 5 | CI 覆盖检查、构建、测试 | `ci.yml`：check（告警门槛）/ test / wasm-gc / native / 体积上限 / 退出码 / 解释契约 / 示例 / 打包预检 |
+| 6 | 至少一个可运行示例 | `examples/basic`（库 API，CI 实跑）与 `examples/cli.sh`（五条命令） |
+| 7 | 完整测试覆盖核心路径 | 120 个，含 EPSG 官方算例、12 种投影闭环、BKG 31 点残差，以及范围外 / 缺数据 / 坏网格的反例 |
+| 8 | 发布到 mooncakes.io | 0.1.0 已发布；发布流水线随后在干净模块里只依赖 registry 版本实跑，输出 447962.7869725874, 4417668.0737849735 |
+| 9 | OSI 认可的开源许可证 | Apache-2.0（`LICENSE`）；未移植任何项目；`moonbitlang/x`（Apache-2.0）仅 CLI 读网格文件时使用 |
+
+### 13.2 这一阶段改了什么
+
+| 项 | 之前 | 现在 |
+| --- | --- | --- |
+| 包名 | `hc155-89/mooncrs`，与 mooncakes 账号不符，发布必被拒 | `wuhaiting321/mooncrs` |
+| README 体例 | 申报书：有能力和边界，没有安装与上手路径 | 项目 README：加安装、快速开始、CLI 表、示例、复现五节 |
+| 示例 | 无 `examples/` | `examples/basic` + `examples/cli.sh`，均进 CI |
+| 发布 | 未发布 | 0.1.0 |
+| CI | check / test / 构建 / 体积 / 退出码 / 契约 | 再加示例实跑与打包预检（断言包内不含 `.gsb`） |
+| 元数据 | `repository` 为空；description 写"no external dependencies" | 填仓库地址；改成只描述运算能力（CLI 确实依赖 `moonbitlang/x`） |
+
+### 13.3 发布为什么走 Actions
+
+本机代理不放行 `mooncakes.io`（CONNECT 返回 502，DNS 也不通），本地 `moon publish`
+在传输阶段失败。改由 `.github/workflows/publish.yml` 手动触发，凭据读仓库 secret
+`MOONCAKES_TOKEN`，不落日志。
+
+流水线里发布之后还有一步：新建一个干净模块，只依赖 registry 上的 `0.1.0`，跑一次
+转换并打印坐标。**发布成功不等于装得上**，这一步才是"包可用"的证据。
+
+### 13.4 复现
+
+```bash
+moon check --deny-warn      # 0 error 0 warning
+moon test                   # 120 / 120
+moon run examples/basic     # 库 API 示例，输出 UTM 坐标与转换报告
+bash examples/cli.sh        # CLI 五条命令
+```

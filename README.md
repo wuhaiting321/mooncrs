@@ -24,7 +24,7 @@ WKT1、PROJ 串、EPSG 码四种定义写法统一成一个模型，在地理、
 生态中长期缺位。本项目核心包只依赖 `moonbitlang/core`，不绑 PROJ、不调 C 库、
 不用 FFI，250 个 EPSG 定义编译进二进制，引擎加 CLI 编到 wasm-gc 约 165 KB。
 
-当前规模 **12 103 行 MoonBit**（实现 9 444 + 测试 2 659），**120 个测试全部通过**；
+当前规模 **12 121 行 MoonBit**（实现 9 462 + 测试 2 659），**120 个测试全部通过**；
 正确性以 EPSG 官方算例为准，并用 BKG 公开发布的 31 个点位逐点对账，数字与复现
 命令见 [`docs/VERIFICATION.md`](docs/VERIFICATION.md)。
 
