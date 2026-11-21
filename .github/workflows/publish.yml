@@ -1,0 +1,69 @@
+name: Publish
+
+# 发布只能手动触发。版本号在 moon.mod 里，改了才会发新版本；
+# mooncakes 上的包名与版本一旦发布不能删除，只能 yank。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to mooncakes.io
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Toolchain version
+        run: moon version --all
+
+      - name: Update registry index
+        run: moon update
+
+      # 凭据来自仓库 secret，不落盘到日志。moon publish 读 ~/.moon/credentials.json。
+      - name: Configure credentials
+        env:
+          MOONCAKES_TOKEN: ${{ secrets.MOONCAKES_TOKEN }}
+        run: |
+          mkdir -p "$HOME/.moon"
+          umask 077
+          printf '{\n  "token": "%s",\n  "username": "wuhaiting321"\n}\n' "$MOONCAKES_TOKEN" \
+            > "$HOME/.moon/credentials.json"
+
+      - name: Publish
+        run: moon publish
+
+      # 发布成功不等于装得上。另起一个干净模块，只依赖 registry 上的这个版本，
+      # 真跑一次转换——这一步才是"包可用"的证据。
+      - name: Verify install in a clean module
+        run: |
+          moon update
+          mkdir -p /tmp/verify-install
+          cd /tmp/verify-install
+          printf '%s\n' \
+            'name = "verify/install"' \
+            '' \
+            'import {' \
+            '  "wuhaiting321/mooncrs@0.1.0"' \
+            '}' > moon.mod
+          printf '%s\n' \
+            'import {' \
+            '  "wuhaiting321/mooncrs/crs",' \
+            '}' \
+            '' \
+            'pkgtype(kind: "executable")' > moon.pkg
+          printf '%s\n' \
+            'fn main raise {' \
+            '  let from = @crs.parse("EPSG:4326")' \
+            '  let to = @crs.parse("EPSG:32650")' \
+            '  let (e, n) = @crs.transform(from, to, 116.3912, 39.9075)' \
+            '  println("\{e}, \{n}")' \
+            '}' > main.mbt
+          moon run .
