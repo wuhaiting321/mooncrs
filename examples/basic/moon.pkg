@@ -1,0 +1,5 @@
+import {
+  "wuhaiting321/mooncrs/crs",
+}
+
+pkgtype(kind: "executable")

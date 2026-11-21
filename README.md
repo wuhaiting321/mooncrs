@@ -1,15 +1,14 @@
-# mooncrs 项目申报书
+# mooncrs
 
-> 2026 MoonBit Hackathon · 11 月赛
+MoonBit 从零实现的坐标参考系（CRS）转换引擎。
 
-## 基本信息
+[![CI](https://github.com/wuhaiting321/mooncrs/actions/workflows/ci.yml/badge.svg)](https://github.com/wuhaiting321/mooncrs/actions/workflows/ci.yml)
+[![mooncakes](https://img.shields.io/badge/mooncakes-wuhaiting321%2Fmooncrs-blue)](https://mooncakes.io/docs/wuhaiting321/mooncrs)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-- **项目名称**：mooncrs — MoonBit 坐标参考系转换引擎
-- **项目作者**：wuhaiting321
-- **联系方式**：19177746962@163.com
-- **GitHub 仓库链接**：https://github.com/wuhaiting321/mooncrs （提交按功能模块组织，逐条可在 `git log` 中核查）
-- **项目方向**：空间数据基础设施 / 坐标几何基础库
-- **是否为移植项目**：否，原创项目
+- **作者**：wuhaiting321（19177746962@163.com）
+- **仓库**：https://github.com/wuhaiting321/mooncrs （提交按功能模块组织，逐条可在 `git log` 中核查）
+- **版本**：0.1.0 ｜ **许可**：Apache-2.0 ｜ **方向**：空间数据基础设施 / 坐标几何基础库
 
 ## 项目简介
 
@@ -28,6 +27,108 @@ WKT1、PROJ 串、EPSG 码四种定义写法统一成一个模型，在地理、
 当前规模 **12 103 行 MoonBit**（实现 9 444 + 测试 2 659），**120 个测试全部通过**；
 正确性以 EPSG 官方算例为准，并用 BKG 公开发布的 31 个点位逐点对账，数字与复现
 命令见 [`docs/VERIFICATION.md`](docs/VERIFICATION.md)。
+
+## 安装
+
+要求 MoonBit 工具链 `moonc` ≥ 0.10.16（本项目在 v0.10.16 上验证）。
+
+作为库使用：
+
+```bash
+moon add wuhaiting321/mooncrs
+```
+
+在 `moon.pkg` 里引入需要的子包，然后 `import` 该包：
+
+```
+import {
+  "wuhaiting321/mooncrs/crs",
+}
+```
+
+核心包（`types` / `projection` / `wkt` / `projstr` / `epsg` / `crs` / `operation` / `grid`）
+只依赖 `moonbitlang/core`；只有 CLI 为了读取 `.gsb` 用到 `moonbitlang/x` 的 `fs`。
+
+从源码构建：
+
+```bash
+git clone https://github.com/wuhaiting321/mooncrs
+cd mooncrs
+moon check && moon test
+moon build --target wasm-gc --release
+```
+
+## 快速开始
+
+```moonbit
+import {
+  "wuhaiting321/mooncrs/crs",
+}
+
+fn main raise {
+  // 四种写法都认：EPSG 码、裸码、PROJ 串、WKT
+  let from = @crs.parse("EPSG:4326")
+  let to = @crs.parse("+proj=utm +zone=50 +datum=WGS84")
+
+  // 单点转换：北京 116.3912°E, 39.9075°N
+  let (e, n) = @crs.transform(from, to, 116.3912, 39.9075)
+  println("\{e}, \{n}")
+
+  // 需要判断"这个结果能不能用"时，走带报告的入口
+  let (_, _, report) = @crs.transform_report(from, to, 116.3912, 39.9075)
+  println(report.to_text())
+}
+```
+
+`transform` 只返回坐标；`transform_report` 额外给出这次用的哪条运算、标称精度、
+适用范围、跳过了哪些更优方案、有哪些保留意见。**拿结果去做决定时用后者。**
+
+完整可运行版本见 [`examples/basic`](examples/basic)。
+
+## CLI 用法
+
+CLI 是库之上的薄壳，用于手工核对与脚本调用：
+
+```bash
+moon run cmd/main -- <命令> [参数...]
+```
+
+| 命令 | 作用 |
+| --- | --- |
+| `transform [--grid ID=PATH] [--explain] <源> <目标> <x> <y>` | 坐标转换；`--explain` 打印运算、方法、精度、范围、警告 |
+| `ops --from <源> --to <目标> [--point <x> <y>]` | 列出该对基准的**全部候选运算**与逐条适用性 |
+| `grid <文件.gsb> [<lon> <lat>]` | 查看网格覆盖范围与单点改正量 |
+| `describe <CRS>` | 人类可读的坐标系说明 |
+| `wkt <CRS>` / `proj <CRS>` | 输出 WKT2 / PROJ 串 |
+| `list [起始] [结束]` / `search <关键词>` | 浏览内置的 250 个 EPSG 码 |
+| `version` | 版本号 |
+
+CRS 参数接受四种写法：`EPSG:4326`、裸码 `32650`、`+proj=utm +zone=50 +datum=WGS84`、
+WKT2/WKT1 文本（含空格时加引号）。退出码：`0` 成功 / `1` 参数错误 / `2` 可恢复错误。
+
+## 示例
+
+```bash
+# 库 API：解析 → 转换 → 读报告
+moon run examples/basic
+
+# CLI：最常用的五条命令
+bash examples/cli.sh
+```
+
+## 复现与测试
+
+```bash
+moon check --deny-warn     # 0 error 0 warning
+moon test                  # 120 / 120
+moon run cmd/main -- transform --explain EPSG:4277 EPSG:4258 1.7179 52.6576
+```
+
+CI（`.github/workflows/ci.yml`）在每次 push 上跑同一组步骤：检查、测试、wasm-gc 与
+native 构建、体积上限、退出码、解释输出契约、示例。
+
+精度不是靠公式算例声明的。`docs/VERIFICATION.md` 给出 BKG 31 个官方点位的逐点残差、
+数据出处与复现命令；`docs/DATA.md` 说明高精度网格如何获取与校验。
 
 ## 项目方向与通用性说明
 
