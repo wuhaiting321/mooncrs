@@ -85,6 +85,12 @@ jobs:
           moon run cmd/main -- describe 27700 | head -5
           moon run cmd/main -- ops --from EPSG:4277 --to EPSG:4258 --point 1.7179 52.6576
 
+      # README 里的示例必须真能跑。示例不进 CI，等于没有示例。
+      - name: Examples
+        run: |
+          moon run examples/basic
+          bash examples/cli.sh
+
       # 退出码是脚本接口的一部分：0 成功 / 1 参数错 / 2 可恢复错误。
       # 三个值必须能区分，否则调用方只能"失败就当全错"。
       # 用 native 二进制断言，是因为这里要的正是**进程**退出码。
@@ -116,6 +122,25 @@ jobs:
           for key in 运算 方法 精度 范围 警告; do
             echo "$OUT" | grep -q "^$key" || {
               echo "::error::--explain 缺少「$key」一项"
+              exit 1
+            }
+          done
+
+      # 发布包预检：这个 zip 会被 mooncakes 公开分发。网格是第三方版权数据
+      # （见 docs/DATA.md），一旦随包发出去就收不回来，所以在 CI 里挡住。
+      - name: Package sanity
+        run: |
+          moon package
+          ZIP=$(ls _build/publish/*.zip | head -1)
+          echo "package: $ZIP ($(stat -c%s "$ZIP") bytes)"
+          unzip -l "$ZIP"
+          if unzip -l "$ZIP" | grep -qiE "\.gsb|\.las|\.los"; then
+            echo "::error::发布包里出现了网格数据文件"
+            exit 1
+          fi
+          for f in LICENSE README.md moon.mod; do
+            unzip -l "$ZIP" | grep -q " $f$" || {
+              echo "::error::发布包缺少 $f"
               exit 1
             }
           done
